@@ -506,6 +506,12 @@ function doSubmitRequest(){
   closeSheet();
   saveRequest(r).then(function(){render();}).catch(function(e){alert('Could not submit: '+e.message);});
 }
+function makePDFFromReceipt(rid){
+  var r=S.receipts.find(function(x){return x.id===rid;});
+  if(!r)return;
+  var t={name:r.tenantName,unit:r.unit,property:r.property,email:r.tenantEmail,rent:r.amount,lease:S.tenantProfile&&S.tenantProfile.lease||'—'};
+  makePDF(t,r.month,r.year);
+}
 function confirmDelProp(id){if(!confirm('Delete this property?'))return;delProp(id);}
 
 // ── Render ─────────────────────────────────────────────────────────
@@ -571,7 +577,7 @@ function render(){
         +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.receipts?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">🧾 Rent Receipts</div>'+arr('receipts')+'</div>'
         +(!S.collapsed.receipts?
           (recs.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No receipts yet — they will appear here after your landlord generates them.</div>'
-          :recs.map(function(r){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(r.month)+' '+esc(r.year)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+'</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:#4ade80">'+fmt(r.amount)+'</div>'+pill('✓ Paid','#4ade80')+'</div></div>';}).join(''))
+          :recs.map(function(r){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(r.month)+' '+esc(r.year)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+'</div></div><div style="display:flex;align-items:center;gap:8px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:#4ade80">'+fmt(r.amount)+'</div>'+pill('✓ Paid','#4ade80')+'</div><button onclick="makePDFFromReceipt(\''+r.id+'\')" style="background:#6366f122;border:1px solid #6366f133;border-radius:10px;padding:6px 10px;cursor:pointer;color:#6366f1;font-family:Nunito,sans-serif;font-size:11px;font-weight:700">⬇ PDF</button></div></div>';}).join(''))
         :'')+'</div>'
         // Maintenance Requests
         +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.requests?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">🔧 Maintenance Requests</div><div style="display:flex;align-items:center;gap:8px">'+(!S.collapsed.requests?'<button onclick="openSheet(\'addRequest\',{urgency:\'Low\'})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ New</button>':'')+arr('requests')+'</div></div>'

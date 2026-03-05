@@ -326,7 +326,14 @@ function togglePaid(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t)return;
   var u=Object.assign({},t,{paid:!t.paid});
-  saveTenant(u).then(function(){if(u.paid)sendEmail(u);});
+  saveTenant(u).then(function(){
+    if(u.paid){
+      sendEmail(u);
+      var month=MONTHS[new Date().getMonth()];
+      var year=String(new Date().getFullYear());
+      syncTenantReceipt(u,month,year);
+    }
+  });
 }
 
 function toggleLocks(id){

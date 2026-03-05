@@ -164,7 +164,7 @@ function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email,name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid}));}
+  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid}));}
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -305,8 +305,8 @@ function doAuth(){
   var f=fb();
   S.authLoading=true;S.authError='';render();
   var p=S.authMode==='login'||S.authMode==='tenantLogin'
-    ?f.signInWithEmailAndPassword(f.auth,S.authEmail.trim(),S.authPassword)
-    :f.createUserWithEmailAndPassword(f.auth,S.authEmail.trim(),S.authPassword);
+    ?f.signInWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword)
+    :f.createUserWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword);
   p.then(function(){S.authLoading=false;}).catch(function(e){
     S.authError=e.code==='auth/invalid-credential'?'Incorrect email or password.':e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message;
     S.authLoading=false;render();
@@ -778,7 +778,7 @@ function initApp(){
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
         S.isTenant=false; subscribeLandlord(user.uid);
       }else{
-        S.isTenant=true; subscribeTenantPortal(user.email);
+        S.isTenant=true; subscribeTenantPortal(user.email.toLowerCase());
       }
     }else{
       S.isTenant=false; S.tenantProfile=null;

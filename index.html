@@ -194,13 +194,14 @@ function makePDF(t,month,year){
   var prop=S.properties.find(function(p){return p.name===t.property;})||{};
 
   // ── Header bar ──
-  doc.setFillColor(99,102,241);doc.rect(0,0,210,45,'F');
+  doc.setFillColor(67,56,202);doc.rect(0,0,210,45,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(24);doc.setFont('helvetica','bold');
-  doc.text('RENT RECEIPT',105,18,{align:'center'});
-  doc.setFontSize(10);doc.setFont('helvetica','normal');
+  doc.text('RENT RECEIPT',105,16,{align:'center'});
+  doc.setFontSize(16);doc.setFont('helvetica','bold');
   doc.text('RellikRentals',105,28,{align:'center'});
-  doc.text('Brandon Ouellette  ·  430 Whitewood Ave, New Liskeard, Ontario  ·  705-358-9970',105,36,{align:'center'});
+  doc.setFontSize(10);doc.setFont('helvetica','normal');
+  doc.text('Brandon Ouellette  ·  430 Whitewood Ave, New Liskeard, Ontario  ·  705-358-9970',105,38,{align:'center'});
 
   // ── Receipt number & date ──
   doc.setTextColor(120,120,140);doc.setFontSize(9);
@@ -212,7 +213,7 @@ function makePDF(t,month,year){
   doc.setDrawColor(220,220,230);doc.line(15,58,195,58);
 
   // ── Two column: Landlord / Tenant ──
-  doc.setTextColor(99,102,241);doc.setFontSize(9);doc.setFont('helvetica','bold');
+  doc.setTextColor(67,56,202);doc.setFontSize(9);doc.setFont('helvetica','bold');
   doc.text('FROM (LANDLORD)',15,67);doc.text('TO (TENANT)',110,67);
   doc.setTextColor(30,30,40);doc.setFontSize(10);doc.setFont('helvetica','bold');
   doc.text('Brandon Ouellette',15,75);doc.text(t.name||'—',110,75);
@@ -232,7 +233,7 @@ function makePDF(t,month,year){
   doc.setDrawColor(220,220,230);doc.line(15,100,195,100);
 
   // ── Payment details ──
-  doc.setTextColor(99,102,241);doc.setFontSize(9);doc.setFont('helvetica','bold');
+  doc.setTextColor(67,56,202);doc.setFontSize(9);doc.setFont('helvetica','bold');
   doc.text('PAYMENT DETAILS',15,110);
   var details=[
     ['Rental Period', month+' '+year],
@@ -252,7 +253,7 @@ function makePDF(t,month,year){
   });
 
   // ── Amount box ──
-  doc.setFillColor(99,102,241);doc.rect(15,y+5,180,22,'F');
+  doc.setFillColor(67,56,202);doc.rect(15,y+5,180,22,'F');
   doc.setTextColor(255,255,255);doc.setFontSize(11);doc.setFont('helvetica','bold');
   doc.text('AMOUNT PAID',18,y+14);
   doc.setFontSize(16);doc.text(fmt(t.rent),192,y+16,{align:'right'});

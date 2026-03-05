@@ -111,7 +111,7 @@ var S = {
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[],
-  tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all',
+  tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false,
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
   scanning:false, scanError:'',
@@ -642,9 +642,9 @@ function render(){
         +'<div style="display:flex;justify-content:space-between;padding:10px 0 2px"><span style="font-size:13px;font-weight:700">Total</span><span style="font-size:14px;font-weight:800;color:#fb923c">-'+fmtS(totalUtilF)+'</span></div>')
       +'</div>'
       // Lease watch
-      +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Lease Watch</div>'
+      +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">Lease Watch</div><button onclick="S.showAllLeases=!S.showAllLeases;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllLeases?'Show Less':'View All')+'</button></div>'
       +(filteredTenants.length===0?'<div style="color:#7c7a90;font-size:13px;text-align:center;padding:10px 0">No tenants'+(S.selectedProperty!=='all'?' at '+esc(S.selectedProperty):'')+'</div>'
-        :[].concat(filteredTenants).sort(function(a,b){return new Date(a.lease||'2099-01-01')-new Date(b.lease||'2099-01-01');}).slice(0,3).map(function(t){var ls=leaseStatus(t.lease||'2099-01-01');return '<div class="card-row" onclick="S.selectedTenant=\''+t.id+'\';S.tab=\'tenants\';render()" style="cursor:pointer"><div><div style="font-size:14px;font-weight:700">'+esc(t.name)+'</div><div style="font-size:12px;color:#7c7a90">'+esc(t.unit)+' · expires '+esc(t.lease||'—')+'</div></div>'+pill(ls.label,ls.color)+'</div>';}).join(''))
+        :[].concat(filteredTenants).sort(function(a,b){return new Date(a.lease||'2099-01-01')-new Date(b.lease||'2099-01-01');}). slice(0,S.showAllLeases?9999:3).map(function(t){var ls=leaseStatus(t.lease||'2099-01-01');return '<div class="card-row" onclick="S.selectedTenant=\''+t.id+'\';S.tab=\'tenants\';render()" style="cursor:pointer"><div><div style="font-size:14px;font-weight:700">'+esc(t.name)+'</div><div style="font-size:12px;color:#7c7a90">'+esc(t.unit)+' · expires '+esc(t.lease||'—')+'</div></div>'+pill(ls.label,ls.color)+'</div>';}).join(''))
       +'</div>'
       // Quick actions
       +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Quick Actions</div><div class="grid-2">'

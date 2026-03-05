@@ -109,6 +109,7 @@ var S = {
   authReady:false, user:null, authMode:'login',
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
+  collapsed:{status:false,lease:false,receipts:false,requests:false},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -550,22 +551,34 @@ function render(){
     }else{
       var recs=[].concat(S.receipts).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
       var ls=leaseStatus(t.lease||'2099-01-01');
+      var tog=function(key){return 'onclick="S.collapsed.'+key+'=!S.collapsed.'+key+';render()"';};
+      var arr=function(key){return '<button '+tog(key)+' style="background:none;border:none;cursor:pointer;color:#7c7a90;font-size:18px;line-height:1;padding:0;font-family:Nunito,sans-serif">'+(S.collapsed[key]?'+':'−')+'</button>';};
       ph='<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:4px">WELCOME BACK</div><div style="font-size:26px;font-weight:800;color:#fff">'+esc(t.name)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:4px">'+esc(t.unit)+' · '+esc(t.property)+'</div></div>'
-        +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Current Status</div>'
-        +'<div class="card-row"><span style="color:#7c7a90">Monthly Rent</span><span style="font-weight:800;font-size:16px;color:#6366f1">'+fmt(t.rent)+'</span></div>'
-        +'<div class="card-row"><span style="color:#7c7a90">Payment Status</span>'+pill(t.paid?'✓ Paid':'⏳ Unpaid',t.paid?'#4ade80':'#fbbf24')+'</div>'
-        +'<div class="card-row"><span style="color:#7c7a90">Lease Status</span>'+pill(ls.label,ls.color)+'</div>'
-        +'<div class="card-row"><span style="color:#7c7a90">Lease Expires</span><span style="font-weight:600">'+esc(t.lease||'—')+'</span></div></div>'
-        +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">📄 Lease Details</div>'
-        +[['Tenant',t.name],['Unit',t.unit],['Property',t.property],['Monthly Rent',fmt(t.rent)],['Lease End',t.lease||'—'],['Phone',t.phone||'—']].map(function(r){return '<div class="card-row"><span style="font-size:13px;color:#7c7a90">'+r[0]+'</span><span style="font-size:13px;font-weight:700">'+esc(r[1])+'</span></div>';}).join('')+'</div>'
-        +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">🧾 Rent Receipts</div>'
-        +(recs.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No receipts yet — they will appear here after your landlord generates them.</div>'
+        // Current Status
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.status?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">Current Status</div>'+arr('status')+'</div>'
+        +(!S.collapsed.status?
+          '<div class="card-row"><span style="color:#7c7a90">Monthly Rent</span><span style="font-weight:800;font-size:16px;color:#6366f1">'+fmt(t.rent)+'</span></div>'
+          +'<div class="card-row"><span style="color:#7c7a90">Payment Status</span>'+pill(t.paid?'✓ Paid':'⏳ Unpaid',t.paid?'#4ade80':'#fbbf24')+'</div>'
+          +'<div class="card-row"><span style="color:#7c7a90">Lease Status</span>'+pill(ls.label,ls.color)+'</div>'
+          +'<div class="card-row"><span style="color:#7c7a90">Lease Expires</span><span style="font-weight:600">'+esc(t.lease||'—')+'</span></div>'
+        :'')+'</div>'
+        // Lease Details
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.lease?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">📄 Lease Details</div>'+arr('lease')+'</div>'
+        +(!S.collapsed.lease?
+          [['Tenant',t.name],['Unit',t.unit],['Property',t.property],['Monthly Rent',fmt(t.rent)],['Lease End',t.lease||'—'],['Phone',t.phone||'—']].map(function(r){return '<div class="card-row"><span style="font-size:13px;color:#7c7a90">'+r[0]+'</span><span style="font-size:13px;font-weight:700">'+esc(r[1])+'</span></div>';}).join('')
+        :'')+'</div>'
+        // Rent Receipts
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.receipts?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">🧾 Rent Receipts</div>'+arr('receipts')+'</div>'
+        +(!S.collapsed.receipts?
+          (recs.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No receipts yet — they will appear here after your landlord generates them.</div>'
           :recs.map(function(r){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(r.month)+' '+esc(r.year)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+'</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:#4ade80">'+fmt(r.amount)+'</div>'+pill('✓ Paid','#4ade80')+'</div></div>';}).join(''))
-        +'</div>'
-        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">🔧 Maintenance Requests</div><button onclick="openSheet(\'addRequest\',{urgency:\'Low\'})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ New</button></div>'
-        +(S.myRequests.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No requests submitted yet</div>'
+        :'')+'</div>'
+        // Maintenance Requests
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.requests?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">🔧 Maintenance Requests</div><div style="display:flex;align-items:center;gap:8px">'+(!S.collapsed.requests?'<button onclick="openSheet(\'addRequest\',{urgency:\'Low\'})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ New</button>':'')+arr('requests')+'</div></div>'
+        +(!S.collapsed.requests?
+          (S.myRequests.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No requests submitted yet</div>'
           :[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).map(function(r){var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';var statColor=r.status==='Done'?'#4ade80':r.status==='In Progress'?'#fbbf24':'#6366f1';return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div><div style="display:flex;gap:6px">'+pill(r.urgency,urgColor)+pill(r.status,statColor)+'</div></div>'+(r.description?'<div style="font-size:12px;color:#7c7a90">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div>';}).join(''))
-        +'</div>';
+        :'')+'</div>';
     }
     root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div><div style="padding:0 16px">'+ph+'</div></div></div>';
     return;

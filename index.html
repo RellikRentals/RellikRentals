@@ -109,7 +109,7 @@ var S = {
   authReady:false, user:null, authMode:'login',
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  tenants:[], receipts:[], utilities:[], properties:[],
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -130,6 +130,7 @@ function subscribeLandlord(uid){
   _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){S.receipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   subscribeUtilities(uid);
+  subscribeRequests(uid);
 }
 
 function subscribeUtilities(uid){
@@ -153,6 +154,7 @@ function subscribeTenantPortal(email){
     S.receipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
     render();
   }));
+  subscribeTenantRequests(email);
 }
 
 function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
@@ -171,6 +173,29 @@ function saveUtil(u){return fsSet('users/'+S.user.uid+'/util_'+monthKey()+'/'+u.
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
 function saveProp(p){return fsSet('users/'+S.user.uid+'/properties/'+p.id,p);}
 function delProp(id){return fsDel('users/'+S.user.uid+'/properties/'+id);}
+
+function saveRequest(r){return fsSet('maintenanceRequests/'+r.id,r);}
+function updateRequestStatus(id,status){
+  var r=S.maintenanceRequests.find(function(x){return x.id===id;});
+  if(!r)return;
+  return fsSet('maintenanceRequests/'+id,Object.assign({},r,{status:status}));
+}
+
+function subscribeRequests(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
+    S.maintenanceRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.landlordUid===uid;});
+    render();
+  }));
+}
+
+function subscribeTenantRequests(email){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
+    S.myRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.tenantEmail===email;});
+    render();
+  }));
+}
 
 function syncTenantReceipt(t,month,year){
   if(!t.email)return Promise.resolve();
@@ -403,6 +428,19 @@ function renderSheet(){
       footer='<button class="btn btn-primary" onclick="doGeneratePDFs()" '+(S.generatingPDF?'disabled':'')+'>'+( S.generatingPDF?'⏳ Generating…':'⬇ Download PDFs')+'</button>';
     }
   }
+  else if(S.sheet==='addRequest'){
+    title='🔧 Maintenance Request';
+    body='<div class="frow">'
+      +inp('Title','text',S.sheetData.title||'','title','e.g. Leaking faucet')
+      +'<div><label>Urgency</label><select onchange="S.sheetData.urgency=this.value">'
+      +'<option value="Low"'+(S.sheetData.urgency==='Low'?' selected':'')+'>🟢 Low</option>'
+      +'<option value="Medium"'+(S.sheetData.urgency==='Medium'?' selected':'')+'>🟡 Medium</option>'
+      +'<option value="High"'+(S.sheetData.urgency==='High'?' selected':'')+'>🔴 High</option>'
+      +'</select></div>'
+      +'<div><label>Description</label><input type="text" placeholder="Describe the issue..." value="'+esc(S.sheetData.description||'')+'" oninput="S.sheetData.description=this.value"/></div>'
+      +'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSubmitRequest()">Submit</button></div>';
+  }
   else if(S.sheet==='monthPicker'){
     title='📅 Select Month';
     var years=[2024,2025,2026,2027,2028];
@@ -441,6 +479,14 @@ function applyMonthPicker(){
   closeSheet();
   if(S.user && !S.isTenant) subscribeUtilities(S.user.uid);
   render();
+}
+function doSubmitRequest(){
+  if(!S.sheetData.title){alert('Please enter a title');return;}
+  var tp=S.tenantProfile;
+  if(!tp)return;
+  var r={id:mkid(),title:S.sheetData.title,description:S.sheetData.description||'',urgency:S.sheetData.urgency||'Low',status:'New',tenantEmail:tp.email,tenantName:tp.name,unit:tp.unit,property:tp.property||'',landlordUid:tp.landlordUid,date:new Date().toISOString().slice(0,10)};
+  closeSheet();
+  saveRequest(r);
 }
 function confirmDelProp(id){if(!confirm('Delete this property?'))return;delProp(id);}
 
@@ -497,6 +543,10 @@ function render(){
         +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">🧾 Rent Receipts</div>'
         +(recs.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No receipts yet — they will appear here after your landlord generates them.</div>'
           :recs.map(function(r){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(r.month)+' '+esc(r.year)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+'</div></div><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:#4ade80">'+fmt(r.amount)+'</div>'+pill('✓ Paid','#4ade80')+'</div></div>';}).join(''))
+        +'</div>'
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">🔧 Maintenance Requests</div><button onclick="openSheet(\'addRequest\',{urgency:\'Low\'})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ New</button></div>'
+        +(S.myRequests.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No requests submitted yet</div>'
+          :[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).map(function(r){var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';var statColor=r.status==='Done'?'#4ade80':r.status==='In Progress'?'#fbbf24':'#6366f1';return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div><div style="display:flex;gap:6px">'+pill(r.urgency,urgColor)+pill(r.status,statColor)+'</div></div>'+(r.description?'<div style="font-size:12px;color:#7c7a90">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div>';}).join(''))
         +'</div>';
     }
     root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div><div style="padding:0 16px">'+ph+'</div></div></div>';
@@ -586,6 +636,16 @@ function render(){
         +'<button class="btn btn-primary" onclick="togglePaid(\''+t.id+'\')">'+( t.paid?'Mark as Unpaid':'✓ Mark as Paid')+'</button>'
         +'<button class="btn btn-secondary" onclick="openSheet(\'editTenant\',JSON.parse(JSON.stringify(S.tenants.find(function(x){return x.id===\''+t.id+'\';}) || {})))">✏️ Edit Tenant Info</button>'
         +'<button class="btn btn-danger" onclick="confirmDelTenant(\''+t.id+'\')">Remove Tenant</button>'
+        // Maintenance requests for this tenant
+        +(function(){
+            var reqs=[].concat(S.maintenanceRequests).filter(function(r){return r.tenantEmail===t.email;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+            var urgColor=function(u){return u==='High'?'#f87171':u==='Medium'?'#fbbf24':'#4ade80';};
+            var statColor=function(s){return s==='Done'?'#4ade80':s==='In Progress'?'#fbbf24':'#6366f1';};
+            return '<div class="card" style="margin-top:4px"><div style="font-size:14px;font-weight:700;margin-bottom:12px">🔧 Maintenance Requests</div>'
+              +(reqs.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:10px 0">No requests from this tenant</div>'
+                :reqs.map(function(r){return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div style="flex:1"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div>'+(r.description?'<div style="font-size:12px;color:#7c7a90;margin-top:2px">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:10px">'+pill(r.urgency,urgColor(r.urgency))+'<select onchange="updateRequestStatus(\''+r.id+'\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:8px;min-width:100px"><option'+(r.status==='New'?' selected':'')+'>New</option><option'+(r.status==='In Progress'?' selected':'')+'>In Progress</option><option'+(r.status==='Done'?' selected':'')+'>Done</option></select></div></div></div>';}).join(''))
+              +'</div>';
+          })()
         +'</div>';
     }else{
       var sorts=[{v:'added',l:'Date Added'},{v:'name',l:'Name'},{v:'rent',l:'Rent'},{v:'lease',l:'Lease End'}];

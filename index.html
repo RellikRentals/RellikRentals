@@ -298,7 +298,7 @@ function makePDF(t,month,year){
 function doAuth(){
   var f=fb();
   S.authLoading=true;S.authError='';render();
-  var p=S.authMode==='login'
+  var p=S.authMode==='login'||S.authMode==='tenantLogin'
     ?f.signInWithEmailAndPassword(f.auth,S.authEmail.trim(),S.authPassword)
     :f.createUserWithEmailAndPassword(f.auth,S.authEmail.trim(),S.authPassword);
   p.then(function(){S.authLoading=false;}).catch(function(e){
@@ -483,10 +483,22 @@ function applyMonthPicker(){
 function doSubmitRequest(){
   if(!S.sheetData.title){alert('Please enter a title');return;}
   var tp=S.tenantProfile;
-  if(!tp)return;
-  var r={id:mkid(),title:S.sheetData.title,description:S.sheetData.description||'',urgency:S.sheetData.urgency||'Low',status:'New',tenantEmail:tp.email,tenantName:tp.name,unit:tp.unit,property:tp.property||'',landlordUid:tp.landlordUid,date:new Date().toISOString().slice(0,10)};
+  if(!tp){alert('Profile not loaded yet, please try again.');return;}
+  var r={
+    id:mkid(),
+    title:S.sheetData.title,
+    description:S.sheetData.description||'',
+    urgency:S.sheetData.urgency||'Low',
+    status:'New',
+    tenantEmail:tp.email||S.user.email,
+    tenantName:tp.name||'',
+    unit:tp.unit||'',
+    property:tp.property||'',
+    landlordUid:tp.landlordUid||'',
+    date:new Date().toISOString().slice(0,10)
+  };
   closeSheet();
-  saveRequest(r);
+  saveRequest(r).then(function(){render();}).catch(function(e){alert('Could not submit: '+e.message);});
 }
 function confirmDelProp(id){if(!confirm('Delete this property?'))return;delProp(id);}
 
@@ -503,20 +515,21 @@ function render(){
   if(!S.user){
     root.innerHTML='<div class="auth-wrap">'
       +'<div style="font-size:32px;font-weight:900;margin-bottom:4px;letter-spacing:-1px">RellikRentals</div>'
-      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:40px;font-weight:600">'+(S.authMode==='tenant'?'Tenant Portal':'Property Management')+'</div>'
+      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:40px;font-weight:600">'+(S.authMode==='tenant'||S.authMode==='tenantLogin'?'Tenant Portal':'Property Management')+'</div>'
       +'<div class="auth-card">'
-      +'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(S.authMode==='login'?'Welcome back 👋':S.authMode==='tenant'?'Tenant Login 🔑':'Create Account 🏠')+'</div>'
+      +'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(S.authMode==='login'?'Welcome back 👋':S.authMode==='tenant'?'Tenant Sign Up 🔑':S.authMode==='tenantLogin'?'Tenant Login 🔑':'Landlord Sign Up 🏠')+'</div>'
       +(S.authError?'<div class="auth-error">'+esc(S.authError)+'</div>':'')
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
       +'<div><label>Password</label><input type="password" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
       +'</div>'
-      +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'?'Log In':'Create Account')+'</button>'
+      +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
-      +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">FIRST TIME?</div>'
-      +'<div style="display:flex;gap:8px">'
-      +'<button onclick="S.authMode=\'signup\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#f0eef8;font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🏠 Landlord Sign Up</button>'
-      +'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#f0eef8;font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Sign Up</button>'
+      +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      +'<button onclick="S.authMode=\'login\';S.authError=\'\';render()" style="background:'+(S.authMode==='login'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='login'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🏠 Landlord Login</button>'
+      +'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenant'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenant'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Sign Up</button>'
+      +'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenantLogin'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenantLogin'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Login</button>'
       +'</div></div>'
       +(S.authMode!=='login'?'<div style="text-align:center;margin-top:14px;font-size:13px"><button onclick="S.authMode=\'login\';S.authError=\'\';render()" style="background:none;border:none;color:#6366f1;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to login</button></div>':'')
       +'</div></div>';
@@ -589,7 +602,7 @@ function render(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.2</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div><div style="font-size:38px;font-weight:800;color:#fff;letter-spacing:-1px">'+fmtS(totalRentF)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:6px">'+filteredTenants.length+' units · '+paidCountF+' paid</div></div>'

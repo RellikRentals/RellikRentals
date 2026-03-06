@@ -65,9 +65,9 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
-window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query};
+window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs};
 window.dispatchEvent(new Event('fbReady'));
 </script>
 
@@ -135,6 +135,7 @@ function subscribeLandlord(uid){
   subscribeUtilities(uid);
   subscribeRequests(uid);
   subscribeBulletin();
+  carryOverLockedUtils(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
   MONTHS.forEach(function(m,i){
@@ -192,6 +193,35 @@ function saveReceipt(r){var d=Object.assign({},r,{previewUrl:null});return fsSet
 function delReceipt(id){return fsDel('users/'+S.user.uid+'/receipts/'+id);}
 function saveUtil(u){return fsSet('users/'+S.user.uid+'/util_'+monthKey()+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
+function toggleUtilLock(id){
+  var u=S.utilities.find(function(x){return x.id===id;});
+  if(!u)return;
+  var updated=Object.assign({},u,{locked:!u.locked});
+  saveUtil(updated);
+}
+function carryOverLockedUtils(uid){
+  // Get previous month key
+  var now=new Date();
+  var prevMonth=new Date(now.getFullYear(),now.getMonth()-1,1);
+  var prevKey=prevMonth.getFullYear()+'-'+String(prevMonth.getMonth()+1).padStart(2,'0');
+  var curKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  var f=fb();
+  // Read previous month utilities
+  f.getDocs(f.query(f.collection(f.db,'users/'+uid+'/util_'+prevKey))).then(function(prevSnap){
+    var locked=prevSnap.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(u){return u.locked;});
+    if(locked.length===0)return;
+    // Read current month to avoid duplicates
+    f.getDocs(f.query(f.collection(f.db,'users/'+uid+'/util_'+curKey))).then(function(curSnap){
+      var curNames=curSnap.docs.map(function(d){return (d.data().name||'').toLowerCase();});
+      locked.forEach(function(u){
+        if(!curNames.includes((u.name||'').toLowerCase())){
+          var newU=Object.assign({},u,{id:mkid(),date:new Date().toISOString().slice(0,10)});
+          fsSet('users/'+uid+'/util_'+curKey+'/'+newU.id,newU);
+        }
+      });
+    });
+  });
+}
 function saveProp(p){return fsSet('users/'+S.user.uid+'/properties/'+p.id,p);}
 function delProp(id){return fsDel('users/'+S.user.uid+'/properties/'+id);}
 
@@ -778,7 +808,7 @@ function render(){
       // Utilities tracker
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">⚡ Monthly Utilities</div><div style="display:flex;align-items:center;gap:8px">'+(filteredUtils.length>2?'<button onclick="S.showAllUtils=!S.showAllUtils;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllUtils?'Show Less':'View All')+'</button>':'')+(isCurrentMonth?'<button onclick="openSheet(\'addUtility\',{})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button>':'<span style="font-size:11px;color:#7c7a90">Past month — read only</span>')+'</div></div>'
       +(filteredUtils.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No utilities logged'+(S.selectedProperty!=='all'?' for '+esc(S.selectedProperty):' this month')+'</div>'
-        :filteredUtils.slice(0,S.showAllUtils?9999:2).map(function(u){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(u.name)+'</div><div style="font-size:11px;color:#7c7a90">'+esc(u.date||'')+'</div></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:15px;font-weight:800;color:#fb923c">-'+fmtS(u.amount)+'</span><button onclick="delUtil(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 8px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div>';}).join('')
+        :filteredUtils.slice(0,S.showAllUtils?9999:2).map(function(u){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(u.name)+'</div><div style="font-size:11px;color:#7c7a90">'+esc(u.date||'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px;font-weight:800;color:#fb923c">-'+fmtS(u.amount)+'</span>'+(isCurrentMonth?'<button onclick="toggleUtilLock(\''+u.id+'\')" style="background:'+(u.locked?'#6366f122':'#22202f')+';border:1px solid '+(u.locked?'#6366f1':'#2e2c3d')+';border-radius:8px;padding:5px 8px;cursor:pointer;color:'+(u.locked?'#6366f1':'#7c7a90')+'" title="'+(u.locked?'Locked — carries over monthly':'Unlocked')+'">'+(u.locked?'🔒':'🔓')+'</button>':'')+(isCurrentMonth?'<button onclick="delUtil(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 8px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>':'')+'</div></div>';}).join('')
         +'<div style="display:flex;justify-content:space-between;padding:10px 0 2px"><span style="font-size:13px;font-weight:700">Total</span><span style="font-size:14px;font-weight:800;color:#fb923c">-'+fmtS(totalUtilF)+'</span></div>')
       +'</div>'
       // Lease watch

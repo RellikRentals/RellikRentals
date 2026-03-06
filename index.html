@@ -672,7 +672,8 @@ function render(){
         :'')+'</div>';
     }
     if(S.tenantBulletinPage){
-      var bph='<div class="top-bar"><button onclick="S.tenantBulletinPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">📋 Bulletin Board</div>'+(t&&t.canPost?'<button onclick="openSheet(\'addPost\',{})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Post</button>':'')+'</div>'
+      var tp2=S.tenantProfile;
+      var bph='<div class="top-bar"><button onclick="S.tenantBulletinPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">📋 Bulletin Board</div>'+(tp2&&tp2.canPost?'<button onclick="openSheet(\'addPost\',{})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Post</button>':'')+'</div>'
         +'<div style="padding:0 16px">'
         +(S.bulletinPosts.length===0
           ?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No announcements yet</div></div>'

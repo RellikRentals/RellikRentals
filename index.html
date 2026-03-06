@@ -735,9 +735,9 @@ function render(){
 
     // YTD calculations (current year)
     var curYear=new Date().getFullYear();
-    var ytdRent=(S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
+    var ytdRent=S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
       return (S.selectedProperty==='all'||r.property===S.selectedProperty) && Number(r.year)===curYear;
-    }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0)+collectedF;
+    }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0;
     var ytdUtil=S.ytdUtilities ? S.ytdUtilities.filter(function(u){
       return S.selectedProperty==='all'||u.property===S.selectedProperty;
     }).reduce(function(a,u){return a+(Number(u.amount)||0);},0) : 0;

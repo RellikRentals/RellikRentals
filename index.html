@@ -63,9 +63,9 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
-window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,collection,doc,setDoc,deleteDoc,onSnapshot,query};
+window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query};
 window.dispatchEvent(new Event('fbReady'));
 </script>
 
@@ -79,14 +79,14 @@ var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supp
 
 function fmt(n){return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtS(n){return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/[<]/g,'&lt;').replace(/[>]/g,'&gt;').replace(/["]/g,'&quot;');}
 function pill(text,color){return '<span class="pill" style="background:'+color+'22;color:'+color+'">'+text+'</span>';}
 function daysUntil(d){return Math.ceil((new Date(d)-new Date())/86400000);}
 function leaseStatus(d){var days=daysUntil(d);if(days<0)return{label:'Expired',color:'#f87171'};if(days<60)return{label:days+'d left',color:'#fbbf24'};return{label:'Active',color:'#4ade80'};}
 function fb(){return window._fb;}
 function mkid(){return String(Date.now());}
 function monthKey(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');}
-function pid(email){return btoa(unescape(encodeURIComponent(email))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
+function pid(email){return btoa(unescape(encodeURIComponent(email))).replace(/=/g,'').replace(/[+]/g,'-').split('/').join('_');}
 
 var ICO = {
   home:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
@@ -110,7 +110,7 @@ var S = {
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false},
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[],
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false,
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -132,6 +132,22 @@ function subscribeLandlord(uid){
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   subscribeUtilities(uid);
   subscribeRequests(uid);
+  // YTD — subscribe to all tenant rent receipts and all utility months for current year
+  var curYr=new Date().getFullYear();
+  MONTHS.forEach(function(m,i){
+    var key=curYr+'-'+String(i+1).padStart(2,'0');
+    _unsubs.push(snap(q(col(db,'users/'+uid+'/util_'+key)),function(s){
+      var mo=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id,_monthKey:key});});
+      S.ytdUtilities=S.ytdUtilities.filter(function(u){return u._monthKey!==key;}).concat(mo);
+      render();
+    }));
+  });
+  // Subscribe to all tenantReceipts for YTD rent using collectionGroup
+  var f2=fb();
+  _unsubs.push(snap(f2.collectionGroup(f2.db,'receipts'),function(s){
+    S.ytdRentReceipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
 }
 
 function subscribeUtilities(uid){
@@ -297,7 +313,7 @@ function makePDF(t,month,year){
   doc.setTextColor(160,160,180);doc.setFontSize(8);doc.setFont('helvetica','normal');
   doc.text('Thank you for your payment! This receipt was generated by RellikRentals.',105,280,{align:'center'});
 
-  doc.save('Receipt_'+t.name.replace(/\s/g,'_')+'_'+month+'_'+year+'.pdf');
+  doc.save('Receipt_'+t.name.replace(/[ ]/g,'_')+'_'+month+'_'+year+'.pdf');
 }
 
 // ── Actions ────────────────────────────────────────────────────────
@@ -371,9 +387,9 @@ function handleFileScan(file){
     fetch('https://rellikrentals-api.rellikrental.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
     .then(function(r){return r.json();})
     .then(function(data){
-      var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
+      var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/`{3}json|`{3}/g,'').trim();
       var result=JSON.parse(txt);
-      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',items:result.items||[],confidence:result.confidence||'low'};
+      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:'all',items:result.items||[],confidence:result.confidence||'low'};
       S.receipts.unshift(Object.assign({},r));render();
       saveReceipt(r);
     })
@@ -423,7 +439,7 @@ function renderSheet(){
   }
   else if(S.sheet==='editReceipt'){
     var r=S.sheetData; title='Edit Receipt';
-    body='<div class="frow">'+inp('Vendor','text',r.vendor||'','vendor')+inp('Date','date',r.date||'','date')+inp('Total ($)','number',r.total||'','total')+'<div><label>Category</label><select onchange="S.sheetData.category=this.value">'+CATS.map(function(c){return '<option'+(c===r.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div></div>';
+    body='<div class="frow">'+inp('Vendor','text',r.vendor||'','vendor')+inp('Date','date',r.date||'','date')+inp('Total ($)','number',r.total||'','total')+'<div><label>Category</label><select onchange="S.sheetData.category=this.value">'+CATS.map(function(c){return '<option'+(c===r.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select></div>'+'<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="all"'+((!r.property||r.property==='all')?' selected':'')+'>All Properties</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(r.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>'+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetEditReceipt()">Save</button></div>';
   }
   else if(S.sheet==='receiptGen'){
@@ -591,7 +607,7 @@ function render(){
           :[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).map(function(r){var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';var statColor=r.status==='Done'?'#4ade80':r.status==='In Progress'?'#fbbf24':'#6366f1';return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div><div style="display:flex;gap:6px">'+pill(r.urgency,urgColor)+pill(r.status,statColor)+'</div></div>'+(r.description?'<div style="font-size:12px;color:#7c7a90">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div>';}).join(''))
         :'')+'</div>';
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.3</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.4</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div></div></div>';
     return;
   }
 
@@ -620,10 +636,21 @@ function render(){
     var collectedF=filteredTenants.filter(function(t){return t.paid;}).reduce(function(a,t){return a+Number(t.rent);},0);
     var outstandingF=totalRentF-collectedF;
     var paidCountF=filteredTenants.filter(function(t){return t.paid;}).length;
-    var totalExpF=S.receipts.reduce(function(a,r){return a+(Number(r.total)||0);},0);
+    var totalExpF=S.receipts.filter(function(r){return S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all';}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
+    var ytdExpenses=S.receipts.filter(function(r){return ((r.date||'').startsWith(String(curYear)))&&(S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all');}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var totalUtilF=filteredUtils.reduce(function(a,u){return a+(Number(u.amount)||0);},0);
     var netIncomeF=collectedF-totalExpF-totalUtilF;
     var propLabel=S.selectedProperty==='all'?'All Properties':S.selectedProperty;
+
+    // YTD calculations (current year)
+    var curYear=new Date().getFullYear();
+    var ytdRent=S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
+      return (S.selectedProperty==='all'||r.property===S.selectedProperty) && Number(r.year)===curYear;
+    }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0;
+    var ytdUtil=S.ytdUtilities ? S.ytdUtilities.filter(function(u){
+      return S.selectedProperty==='all'||u.property===S.selectedProperty;
+    }).reduce(function(a,u){return a+(Number(u.amount)||0);},0) : 0;
+    var ytdNet=ytdRent-ytdExpenses-ytdUtil;
 
     // Property dropdown
     var propDropdown='<div style="padding:0 16px 12px">'
@@ -631,10 +658,20 @@ function render(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.3</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.4</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
-      +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div><div style="font-size:38px;font-weight:800;color:#fff;letter-spacing:-1px">'+fmtS(totalRentF)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:6px">'+filteredTenants.length+' units · '+paidCountF+' paid</div></div>'
+      +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+      +'<div><div style="font-size:38px;font-weight:800;color:#fff;letter-spacing:-1px">'+fmtS(totalRentF)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:6px">'+filteredTenants.length+' units · '+paidCountF+' paid</div></div>'
+      +'<div style="text-align:right;display:flex;flex-direction:column;gap:2px;padding-top:4px">'
+      +'<div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:2px">YTD '+curYear+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#4ade80">▲ '+fmtS(ytdRent)</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#f87171">▼ '+fmtS(ytdExpenses)</div>'
+      +'<div style="font-size:11px;font-weight:700;color:#fb923c">▼ '+fmtS(ytdUtil)</div>'
+      +'<div style="font-size:12px;font-weight:800;color:'+(ytdNet>=0?'#4ade80':'#f87171')+';margin-top:2px;border-top:1px solid rgba(255,255,255,0.2);padding-top:2px">'+(ytdNet>=0?'+':'')+fmtS(ytdNet)+'</div>'
+      +'</div>'
+      +'</div></div>'
       +'<div class="grid-2" style="margin-bottom:12px">'
       +[['Collected',fmtS(collectedF),'#4ade80',paidCountF+'/'+filteredTenants.length+' tenants'],['Outstanding',fmtS(outstandingF),'#fbbf24',(filteredTenants.length-paidCountF)+' pending'],['Expenses',fmtS(totalExpF),'#f87171',S.receipts.length+' receipts'],['Utilities',fmtS(totalUtilF),'#fb923c',filteredUtils.length+' entries']]
       .map(function(s){return '<div class="card" style="margin-bottom:0;padding:14px 16px"><div style="font-size:11px;color:#7c7a90;font-weight:600;margin-bottom:6px">'+s[0].toUpperCase()+'</div><div style="font-size:20px;font-weight:800;color:'+s[2]+'">'+s[1]+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">'+s[3]+'</div></div>';}).join('')

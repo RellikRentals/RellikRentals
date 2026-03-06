@@ -370,6 +370,7 @@ function doAddPost(){
   saveBulletinPost(post);
 }
 
+function toggleCanPost(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t)return;
   saveTenant(Object.assign({},t,{canPost:!t.canPost}));

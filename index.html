@@ -368,9 +368,7 @@ function handleFileScan(file){
   reader.onload=function(){
     var base64=reader.result.split(',')[1];
     var previewUrl=URL.createObjectURL(file);
-    var k1='sk-ant-api03-Wysq5bQXdQ8tnui0BcouyuDO56xYZwFGAp-2adQyxV1z-PV4xSeBzqdYWHP2787ukwWOuxojKCnwa9aYPoJ2Bw-';
-    var k2='zO5MVAAA';
-    fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k1+k2,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
+    fetch('https://rellikrentals-api.rellikrentals.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
     .then(function(r){return r.json();})
     .then(function(data){
       var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();

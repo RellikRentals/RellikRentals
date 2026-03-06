@@ -470,6 +470,28 @@ function renderSheet(){
       +'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSubmitRequest()">Submit</button></div>';
   }
+  else if(S.sheet==='changelog'){
+    title='What\'s New';
+    var versions=[
+      {v:'2.5',items:['Two row navigation bar','Documents moved to Quick Actions','Properties tab decluttered','Receipt notes field for tax time','Branded footer']},
+      {v:'2.4',items:['AI receipt scanner via Cloudflare','API key secured server-side','Business Meals category added','Receipt property tagging','YTD financials on hero card']},
+      {v:'2.3',items:['Maintenance requests system','Global maintenance tab','Real-time landlord & tenant sync','Collapsible tenant portal sections','Tenant PDF receipt downloads']},
+      {v:'2.2',items:['Tenant login & signup separated','Landlord signup removed for security','Maintenance request error handling']},
+      {v:'2.1',items:['Property filter on dashboard','Month picker for historical data','Professional PDF receipts with letterhead','Postal code on property profiles']},
+    ];
+    body='<div style="padding-bottom:8px">'
+      +versions.map(function(ver){
+        return '<div style="margin-bottom:20px">'
+          +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+          +'<span style="background:#6366f122;color:#6366f1;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
+          +(ver.v==='2.5'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +'</div>'
+          +ver.items.map(function(item){return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #2e2c3d"><span style="color:#6366f1;font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:#f0eef8">'+item+'</span></div>';}).join('')
+          +'</div>';
+      }).join('')
+      +'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Close</button></div>';
+  }
   else if(S.sheet==='monthPicker'){
     title='📅 Select Month';
     var years=[2024,2025,2026,2027,2028];
@@ -609,7 +631,7 @@ function render(){
           :[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).map(function(r){var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';var statColor=r.status==='Done'?'#4ade80':r.status==='In Progress'?'#fbbf24':'#6366f1';return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div><div style="display:flex;gap:6px">'+pill(r.urgency,urgColor)+pill(r.status,statColor)+'</div></div>'+(r.description?'<div style="font-size:12px;color:#7c7a90">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div>';}).join(''))
         :'')+'</div>';
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.5</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:24px 0 8px"><div style="font-size:11px;color:#2e2c3d;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet('changelog',{})">v2.5</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:24px 0 8px"><div style="font-size:11px;color:#2e2c3d;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -665,7 +687,7 @@ function render(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700">v2.5</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet('changelog',{})">v2.5</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'

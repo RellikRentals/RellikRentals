@@ -388,8 +388,14 @@ function subscribeBulletin(){
 
 function confirmDelTenant(id){
   if(!confirm('Remove this tenant?'))return;
+  var t=S.tenants.find(function(x){return x.id===id;});
   S.selectedTenant=null;render();
   delTenant(id);
+  // Also remove their tenantProfile so ghost data doesn't linger
+  if(t&&t.email){
+    var p=pid(t.email.toLowerCase());
+    fsDel('tenantProfiles/'+p);
+  }
 }
 
 function doGeneratePDFs(){

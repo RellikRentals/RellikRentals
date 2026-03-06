@@ -111,8 +111,8 @@ var S = {
   authReady:false, user:null, authMode:'login',
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false},
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false},
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -134,6 +134,7 @@ function subscribeLandlord(uid){
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   subscribeUtilities(uid);
   subscribeRequests(uid);
+  subscribeBulletin();
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
   MONTHS.forEach(function(m,i){
@@ -174,6 +175,7 @@ function subscribeTenantPortal(email){
     render();
   }));
   subscribeTenantRequests(email);
+  subscribeBulletin();
 }
 
 function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
@@ -360,6 +362,29 @@ function toggleLocks(id){
   saveTenant(Object.assign({},t,{locksChanged:!t.locksChanged}));
 }
 
+function doAddPost(){
+  var d=S.sheetData;
+  if(!d.title||!d.message){alert('Title and message required');return;}
+  var post={id:mkid(),title:d.title,message:d.message,authorName:S.user.displayName||S.user.email.split('@')[0],authorEmail:S.user.email,date:new Date().toISOString().slice(0,10),landlordUid:S.isTenant?null:S.user.uid};
+  closeSheet();
+  saveBulletinPost(post);
+}
+
+  var t=S.tenants.find(function(x){return x.id===id;});
+  if(!t)return;
+  saveTenant(Object.assign({},t,{canPost:!t.canPost}));
+}
+
+function saveBulletinPost(post){var f=fb();return f.setDoc(f.doc(f.db,'bulletinPosts/'+post.id),post);}
+function delBulletinPost(id){var f=fb();return f.deleteDoc(f.doc(f.db,'bulletinPosts/'+id));}
+function subscribeBulletin(){
+  var f=fb();
+  _unsubs.push(f.onSnapshot(f.query(f.collection(f.db,'bulletinPosts')),function(s){
+    S.bulletinPosts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+}
+
 function confirmDelTenant(id){
   if(!confirm('Remove this tenant?'))return;
   S.selectedTenant=null;render();
@@ -470,7 +495,11 @@ function renderSheet(){
       +'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSubmitRequest()">Submit</button></div>';
   }
-  else if(S.sheet==='changelog'){
+  else if(S.sheet==='addPost'){
+    title='New Post';
+    body='<div class="frow">'+inp('Title','text',S.sheetData.title||'','title','e.g. Building maintenance this Saturday')+inp('Message','text',S.sheetData.message||'','message','Write your announcement here...')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doAddPost()">Post</button></div>';
+  }
     title='What\'s New';
     var versions=[
       {v:'2.6',items:['Version badge opens changelog','Footer moved below nav bar','Receipt notes field for tax time','Two row navigation bar','Documents in Quick Actions']},
@@ -630,9 +659,15 @@ function render(){
         +(!S.collapsed.requests?
           (S.myRequests.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No requests submitted yet</div>'
           :[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).map(function(r){var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';var statColor=r.status==='Done'?'#4ade80':r.status==='In Progress'?'#fbbf24':'#6366f1';return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">'+esc(r.title)+'</div><div style="display:flex;gap:6px">'+pill(r.urgency,urgColor)+pill(r.status,statColor)+'</div></div>'+(r.description?'<div style="font-size:12px;color:#7c7a90">'+esc(r.description)+'</div>':'')+'<div style="font-size:11px;color:#7c7a90;margin-top:4px">'+r.date+'</div></div>';}).join(''))
+        :'')+'</div>'
+        // Bulletin Board
+        +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.bulletin?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">📋 Bulletin Board</div><div style="display:flex;align-items:center;gap:8px">'+(!S.collapsed.bulletin&&t.canPost?'<button onclick="openSheet(\'addPost\',{})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Post</button>':'')+arr('bulletin')+'</div></div>'
+        +(!S.collapsed.bulletin?
+          (S.bulletinPosts.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No announcements yet</div>'
+          :S.bulletinPosts.map(function(p){var isOwn=p.authorEmail===S.user.email;return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="flex:1"><div style="font-size:14px;font-weight:700">'+esc(p.title)+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(p.authorName)+' · '+p.date+'</div></div>'+(isOwn?'<button onclick="delBulletinPost(\''+p.id+'\')" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px">'+ICO.trash+'</button>':'')+'</div><div style="font-size:13px;color:#c0bdd8;margin-top:6px;line-height:1.5">'+esc(p.message)+'</div></div>';}).join(''))
         :'')+'</div>';
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v2.6</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div></div><div style="text-align:center;padding:8px 0 6px;background:#1a1927"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v2.6</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -741,6 +776,7 @@ function render(){
         +'<div class="card">'
         +[['Unit',t.unit],['Property',t.property],['Email',t.email],['Phone',t.phone],['Lease Ends',t.lease]].map(function(r){return '<div class="card-row"><span style="font-size:14px;color:#7c7a90">'+r[0]+'</span><span style="font-size:14px;font-weight:600">'+esc(r[1]||'—')+'</span></div>';}).join('')
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔒 Locks Changed</span><div onclick="toggleLocks(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.locksChanged?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.locksChanged?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+        +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">📋 Can Post on Bulletin</span><div onclick="toggleCanPost(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canPost?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canPost?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'</div>'
         +'<button class="btn btn-primary" onclick="togglePaid(\''+t.id+'\')">'+( t.paid?'Mark as Unpaid':'✓ Mark as Paid')+'</button>'
         +'<button class="btn btn-secondary" onclick="openSheet(\'editTenant\',JSON.parse(JSON.stringify(S.tenants.find(function(x){return x.id===\''+t.id+'\';}) || {})))">✏️ Edit Tenant Info</button>'
@@ -817,8 +853,23 @@ function render(){
   }
 
   else if(S.tab==='bulletin'){
-    c='<div class="top-bar"><div class="page-title">Bulletin Board</div></div>'
-      +'<div style="padding:0 16px"><div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">Coming Soon</div><div style="font-size:13px">Post announcements for your tenants here</div></div></div>';
+    var canPost=true; // landlord can always post
+    c='<div class="top-bar"><div class="page-title">📋 Bulletin Board</div><button onclick="openSheet(\'addPost\',{})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Post</button></div>'
+      +'<div style="padding:0 16px">'
+      +(S.bulletinPosts.length===0
+        ?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No posts yet</div><div style="font-size:13px">Be the first to post an announcement</div></div>'
+        :S.bulletinPosts.map(function(p){
+          var isOwn=p.authorEmail===S.user.email;
+          return '<div class="card">'
+            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+            +'<div style="flex:1"><div style="font-size:15px;font-weight:800">'+esc(p.title)+'</div>'
+            +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(p.authorName)+' · '+p.date+'</div></div>'
+            +'<button onclick="delBulletinPost(\''+p.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171;flex-shrink:0">'+ICO.trash+'</button>'
+            +'</div>'
+            +'<div style="font-size:13px;color:#c0bdd8;line-height:1.5">'+esc(p.message)+'</div>'
+            +'</div>';
+        }).join(''))
+      +'</div>';
   }
 
   else if(S.tab==='settings'){
@@ -858,7 +909,7 @@ function render(){
     }
   }
 
-  root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'</div>'+nav+'<div style="text-align:center;padding:8px 0 6px;background:#1a1927"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>';
+  root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>'+nav+'</div>';
   renderSheet();
 }
 

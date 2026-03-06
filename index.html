@@ -184,7 +184,7 @@ function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid}));}
+  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false}));}
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -723,9 +723,9 @@ function render(){
 
     // YTD calculations (current year)
     var curYear=new Date().getFullYear();
-    var ytdRent=S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
+    var ytdRent=(S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
       return (S.selectedProperty==='all'||r.property===S.selectedProperty) && Number(r.year)===curYear;
-    }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0;
+    }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0)+collectedF;
     var ytdUtil=S.ytdUtilities ? S.ytdUtilities.filter(function(u){
       return S.selectedProperty==='all'||u.property===S.selectedProperty;
     }).reduce(function(a,u){return a+(Number(u.amount)||0);},0) : 0;

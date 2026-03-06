@@ -368,7 +368,7 @@ function handleFileScan(file){
   reader.onload=function(){
     var base64=reader.result.split(',')[1];
     var previewUrl=URL.createObjectURL(file);
-    fetch('https://rellikrentals-api.rellikrentals.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
+    fetch('https://rellikrentals-api.rellikrental.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
     .then(function(r){return r.json();})
     .then(function(data){
       var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();

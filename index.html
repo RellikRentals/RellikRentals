@@ -724,6 +724,7 @@ function render(){
     // Filter tenants by selected property
     var filteredTenants = S.selectedProperty==='all' ? S.tenants : S.tenants.filter(function(t){return t.property===S.selectedProperty;});
     var filteredUtils = S.selectedProperty==='all' ? S.utilities : S.utilities.filter(function(u){return u.property===S.selectedProperty;});
+    var curYear=new Date().getFullYear();
     var totalRentF=filteredTenants.reduce(function(a,t){return a+Number(t.rent);},0);
     var collectedF=filteredTenants.filter(function(t){return t.paid;}).reduce(function(a,t){return a+Number(t.rent);},0);
     var outstandingF=totalRentF-collectedF;
@@ -735,7 +736,6 @@ function render(){
     var propLabel=S.selectedProperty==='all'?'All Properties':S.selectedProperty;
 
     // YTD calculations (current year)
-    var curYear=new Date().getFullYear();
     var ytdRent=S.ytdRentReceipts ? S.ytdRentReceipts.filter(function(r){
       return (S.selectedProperty==='all'||r.property===S.selectedProperty) && Number(r.year)===curYear;
     }).reduce(function(a,r){return a+(Number(r.amount)||0);},0) : 0;

@@ -501,6 +501,7 @@ function renderSheet(){
     body='<div class="frow">'+inp('Title','text',S.sheetData.title||'','title','e.g. Building maintenance this Saturday')+inp('Message','text',S.sheetData.message||'','message','Write your announcement here...')+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doAddPost()">Post</button></div>';
   }
+  else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
       {v:'2.6',items:['Version badge opens changelog','Footer moved below nav bar','Receipt notes field for tax time','Two row navigation bar','Documents in Quick Actions']},

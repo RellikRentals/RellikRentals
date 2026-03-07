@@ -788,8 +788,8 @@ function render(){
 
   // Notification badges
   var newRequestCount=S.maintenanceRequests.filter(function(r){return r.status==='New';}).length;
-  var lastSeenBulletin=parseInt(localStorage.getItem('lastSeenBulletin')||'0');
-  var newBulletinCount=S.bulletinPosts.filter(function(p){return new Date(p.date).getTime()>lastSeenBulletin;}).length;
+  var lastSeenBulletinCount=parseInt(localStorage.getItem('lastSeenBulletinCount')||'0');
+  var newBulletinCount=Math.max(0,S.bulletinPosts.length-lastSeenBulletinCount);
   function badge(n){return n>0?'<span style="position:absolute;top:2px;right:10px;background:#f87171;color:#fff;font-size:9px;font-weight:800;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1">'+n+'</span>':'';}
 
   var nav='<nav class="bottom-nav">'
@@ -803,7 +803,7 @@ function render(){
     +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Receipts',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='bulletin'?badge(newBulletinCount):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletin\',Date.now());':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\','+S.bulletinPosts.length+');':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div></nav>';
 

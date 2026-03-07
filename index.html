@@ -540,7 +540,7 @@ function renderSheet(){
       var cnt=S.selectedForReceipt.length||S.tenants.length;
       title='🧾 Generate Receipts';
       body='<div class="grid-2" style="margin-bottom:16px"><div><label>Month</label><select onchange="S.receiptMonth=this.value">'+MONTHS.map(function(m){return '<option'+(m===S.receiptMonth?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div><div><label>Year</label><select onchange="S.receiptYear=this.value">'+['2024','2025','2026','2027'].map(function(y){return '<option'+(y===S.receiptYear?' selected':'')+'>'+y+'</option>';}).join('')+'</select></div></div><label>Select Tenants <span style="font-weight:400;text-transform:none">(blank = all)</span></label><div style="max-height:200px;overflow-y:auto;margin-bottom:12px">'+tList+'</div><div style="background:#6366f111;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#6366f1">Generating <strong>'+cnt+'</strong> receipt'+(cnt!==1?'s':'')+' for <strong>'+S.receiptMonth+' '+S.receiptYear+'</strong></div>';
-      footer='<button class="btn btn-primary" onclick="doGeneratePDFs()" '+(S.generatingPDF?'disabled':'')+'>'+( S.generatingPDF?'⏳ Generating…':'⬇ Download PDFs')+'</button>';
+      footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doGeneratePDFs()" '+(S.generatingPDF?'disabled':'')+'>'+( S.generatingPDF?'⏳ Generating…':'⬇ Download PDFs')+'</button></div>';
     }
   }
   else if(S.sheet==='addRequest'){
@@ -811,7 +811,7 @@ function _doRender(){
     +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Receipts',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='bulletin'?badge(newBulletinCount):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\','+S.bulletinPosts.length+');':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\',S.bulletinPosts.length);':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div></nav>';
 

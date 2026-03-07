@@ -16,7 +16,8 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#0f0f13;overscroll-behavior:none}
-body{font-family:'Nunito',sans-serif;color:#f0eef8;-webkit-font-smoothing:antialiased}
+body{font-family:'Nunito',sans-serif;color:#f0eef8;-webkit-font-smoothing:antialiased;display:flex;justify-content:center;align-items:flex-start}
+#root{width:100%;max-width:430px;min-height:100vh;position:relative;background:#0f0f13;box-shadow:0 0 60px rgba(0,0,0,0.5)}
 #app{max-width:430px;margin:0 auto;height:100vh;display:flex;flex-direction:column;position:relative;overflow:hidden}
 .scroll{flex:1;overflow-y:auto;padding-bottom:120px;-webkit-overflow-scrolling:touch}
 .scroll::-webkit-scrollbar{display:none}
@@ -111,8 +112,8 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', receiptTypeFilter:'all', showAllUtils:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false,
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -136,6 +137,7 @@ function subscribeLandlord(uid){
   subscribeRequests(uid);
   subscribeBulletin();
   subscribeTodos(uid);
+  subscribeMileage(uid);
   carryOverLockedUtils(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
@@ -252,9 +254,24 @@ function toggleTodo(id){
   if(!t)return;
   fsSet('users/'+S.user.uid+'/todos/'+id,Object.assign({},t,{done:!t.done}));
 }
+function doSaveMileage(){
+  var d=S.sheetData;
+  if(!d.distance||!d.date){alert('Date and distance required');return;}
+  closeSheet();
+  saveMileage({id:mkid(),date:d.date,distance:Number(d.distance),unit:d.unit||'km',property:d.property||'Other',notes:d.notes||''});
+}
 function delTodo(id){fsDel('users/'+S.user.uid+'/todos/'+id);}
 
-function subscribeRequests(uid){
+function subscribeMileage(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/mileage')),function(s){
+    S.mileageLog=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+}
+function saveMileage(m){return fsSet('users/'+S.user.uid+'/mileage/'+m.id,m);}
+function delMileage(id){return fsDel('users/'+S.user.uid+'/mileage/'+id);}
+
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
     S.maintenanceRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.landlordUid===uid;});
@@ -565,6 +582,21 @@ function renderSheet(){
       footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doGeneratePDFs()" '+(S.generatingPDF?'disabled':'')+'>'+( S.generatingPDF?'⏳ Generating…':'⬇ Download PDFs')+'</button></div>';
     }
   }
+  else if(S.sheet==='addMileage'){
+    var d=S.sheetData;
+    title='🚗 Log Drive';
+    body='<div class="frow">'
+      +inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')
+      +inp('Distance','number',d.distance||'','distance','e.g. 24')
+      +'<div><label>Unit (km or miles)</label><div style="display:flex;gap:8px;margin-top:6px">'
+      +'<button onclick="S.sheetData.unit=\'km\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+((d.unit||'km')==='km'?'#6366f1':'#2e2c3d')+';background:'+((d.unit||'km')==='km'?'#6366f122':'transparent')+';color:'+((d.unit||'km')==='km'?'#6366f1':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">km</button>'
+      +'<button onclick="S.sheetData.unit=\'mi\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+(d.unit==='mi'?'#6366f1':'#2e2c3d')+';background:'+(d.unit==='mi'?'#6366f122':'transparent')+';color:'+(d.unit==='mi'?'#6366f1':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">mi</button>'
+      +'</div></div>'
+      +'<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="Other"'+((!d.property||d.property==='Other')?' selected':'')+'>Other</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>'
+      +inp('Notes (optional)','text',d.notes||'','notes','e.g. Hardware store, Unit 3 inspection')
+      +'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSaveMileage()">Save Drive</button></div>';
+  }
   else if(S.sheet==='addRequest'){
     title='🔧 Maintenance Request';
     body='<div class="frow">'
@@ -830,7 +862,7 @@ function _doRender(){
       return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div><div class="nav-row">'
-    +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Receipts',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
+    +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Expenses',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='bulletin'?badge(newBulletinCount):'';
       return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\',S.bulletinPosts.length);':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
@@ -876,7 +908,16 @@ function _doRender(){
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
-      +'<div><div style="font-size:38px;font-weight:800;color:#fff;letter-spacing:-1px">'+fmtS(totalRentF)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:6px">'+filteredTenants.length+' units · '+paidCountF+' paid</div></div>'
+      +'<div><div style="font-size:38px;font-weight:800;color:#fff;letter-spacing:-1px">'+fmtS(totalRentF)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:6px">'+filteredTenants.length+' units · '+paidCountF+' paid</div>'
+      // Mileage this month
+      +(function(){
+        var mn=S.viewMonth; var yr=S.viewYear;
+        var mLog=S.mileageLog.filter(function(m){return m.date&&m.date.startsWith(yr+'-'+String(mn+1).padStart(2,'0'));});
+        var mTotal=mLog.reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+        var mUnit=mLog.length>0?mLog[0].unit:'km';
+        return mTotal>0?'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px">🚗 '+mTotal+' '+mUnit+' this month</div>':'';
+      })()
+      +'</div>'
       +'<div style="text-align:right;display:flex;flex-direction:column;gap:2px;padding-top:4px">'
       +'<div style="font-size:10px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:2px">YTD '+curYear+'</div>'
       +'<div style="font-size:11px;font-weight:700;color:#4ade80">+ '+fmtS(ytdRent)+'</div>'
@@ -909,7 +950,7 @@ function _doRender(){
       +'</div>'
       // Quick actions
       +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Quick Actions</div><div class="grid-2">'
-      +[['Add Tenant','openSheet(\'addTenant\',{})',ICO.plus],['Gen Receipts','openSheet(\'receiptGen\',{})',ICO.receipt],['Documents','S.tab=\'properties\';S.propertiesSubTab=\'docs\';render()','<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],['Upload Receipt','S.tab=\'receipts\';render()',ICO.upload]]
+      +[['Add Tenant','openSheet(\'addTenant\',{})',ICO.plus],['Gen Receipts','openSheet(\'receiptGen\',{})',ICO.receipt],['Documents','S.tab=\'properties\';S.propertiesSubTab=\'docs\';render()','<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],['Upload Expense','S.tab=\'receipts\';render()',ICO.upload]]
       .map(function(a){return '<button onclick="'+a[1]+'" style="background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:14px 12px;cursor:pointer;text-align:left;color:#f0eef8;font-family:Nunito,sans-serif"><div style="margin-bottom:8px;color:#6366f1">'+a[2]+'</div><div style="font-size:13px;font-weight:700">'+a[0]+'</div></button>';}).join('')
       +'</div></div></div>';
   }
@@ -985,13 +1026,14 @@ function _doRender(){
       +'<div style="padding:0 16px">'
       // To-Do Checklist
       +'<div class="card" style="padding:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">✅ To-Do List'+(totalTodos>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+doneTodos+'/'+totalTodos+' done</span>':'')+'</div></div>'
-      +'<div style="display:flex;gap:6px;margin-bottom:8px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0;font-size:12px;padding:6px 10px"/><button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:10px;padding:6px 12px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>'
+      +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':
+        '<div style="display:flex;gap:6px;margin-bottom:8px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0;font-size:12px;padding:6px 10px"/><button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:10px;padding:6px 12px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>')
       +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
         :S.todoItems.map(function(t){
           return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
             +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
             +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
-            +'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>'
+            +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>')
             +'</div>';
         }).join(''))
       +'</div>'
@@ -1050,7 +1092,12 @@ function _doRender(){
     var byCat=filteredReceipts.reduce(function(a,r){a[r.category]=(a[r.category]||0)+Number(r.total);return a;},{});
     var filteredTotal=filteredReceipts.reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var btnStyle=function(type){return 'padding:7px 16px;border-radius:99px;border:none;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.receiptTypeFilter===type?'#6366f1':'#22202f')+';color:'+(S.receiptTypeFilter===type?'#fff':'#7c7a90');};
-    c='<div class="top-bar"><div class="page-title">Receipts</div>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
+    // Mileage for current month
+    var curMileage=S.mileageLog.filter(function(m){return m.date&&m.date.startsWith(S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0'));});
+    var curMileageProp=S.mileageFilter?curMileage.filter(function(m){return m.property===S.mileageFilter;}):curMileage;
+    var totalMiles=curMileageProp.reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+    var mileUnit=curMileage.length>0?curMileage[0].unit:'km';
+    c='<div class="top-bar"><div class="page-title">Expenses</div>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
       +'<div style="padding:0 16px">'
       +'<div style="display:flex;gap:8px;margin-bottom:12px"><button onclick="S.receiptTypeFilter=\'all\';render()" style="'+btnStyle('all')+'">All</button><button onclick="S.receiptTypeFilter=\'operating\';render()" style="'+btnStyle('operating')+'">Operating</button><button onclick="S.receiptTypeFilter=\'capital\';render()" style="'+btnStyle('capital')+'">Capital</button></div>'
       +'<div class="card" style="text-align:center;padding:28px 16px;cursor:pointer;border-style:dashed;border-color:'+(S.scanning?'#6366f1':'#2e2c3d')+'" onclick="document.getElementById(\'fi\').click()">'
@@ -1058,6 +1105,19 @@ function _doRender(){
       +(S.scanning?'<div style="font-size:28px;margin-bottom:8px">🔍</div><div style="font-weight:700;margin-bottom:4px">Scanning receipt…</div><div style="font-size:13px;color:#7c7a90">AI is reading your receipt</div><div style="margin-top:12px;display:flex;justify-content:center;gap:5px"><span class="dot" style="animation:pulse 1.2s 0s infinite"></span><span class="dot" style="animation:pulse 1.2s 0.4s infinite"></span><span class="dot" style="animation:pulse 1.2s 0.8s infinite"></span></div>'
         :'<div style="margin-bottom:10px">'+ICO.upload+'</div><div style="font-weight:700;margin-bottom:4px">Tap to upload receipt</div><div style="font-size:13px;color:#7c7a90">AI reads the total automatically</div>')
       +'</div>'
+      // Mileage tracker button
+      +'<button onclick="openSheet(\'addMileage\',{unit:\'km\'})" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:12px;color:#f0eef8;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">🚗 Log Mileage</button>'
+      // Mileage summary card
+      +(S.mileageLog.length>0?
+        '<div class="card" style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:700">🚗 Mileage This Month</div><div style="font-size:18px;font-weight:800;color:#6366f1">'+totalMiles+' '+mileUnit+'</div></div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
+        +'<button onclick="S.mileageFilter=null;render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter?'#22202f':'#6366f1')+';color:'+(S.mileageFilter?'#7c7a90':'#fff')+'">All</button>'
+        +S.properties.map(function(p){return '<button onclick="S.mileageFilter=\''+esc(p.name)+'\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter===p.name?'#6366f1':'#22202f')+';color:'+(S.mileageFilter===p.name?'#fff':'#7c7a90')+'">'+esc(p.name)+'</button>';}).join('')
+        +'<button onclick="S.mileageFilter=\'Other\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter==='Other'?'#6366f1':'#22202f')+';color:'+(S.mileageFilter==='Other'?'#fff':'#7c7a90')+'">Other</button>'
+        +'</div>'
+        +curMileageProp.map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
+        +'</div>'
+      :'')
       +(S.scanError?'<div style="background:#fbbf2422;border-radius:12px;padding:12px 14px;margin-bottom:12px;color:#fbbf24;font-size:13px">⚠️ '+esc(S.scanError)+'</div>':'')
       +(Object.keys(byCat).length>0?'<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none">'+Object.entries(byCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<div style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:8px 14px;white-space:nowrap;flex-shrink:0"><div style="font-size:11px;color:#7c7a90">'+esc(e[0])+'</div><div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(e[1])+'</div></div>';}).join('')+'</div>':'')
       +filteredReceipts.map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')

@@ -111,7 +111,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, receiptTypeFilter:'all', showAllUtils:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, receiptTypeFilter:'all', showAllUtils:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -185,7 +185,7 @@ function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false}));}
+  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false}));}
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -243,12 +243,16 @@ function subscribeRequests(uid){
 function subscribeTenantRequests(email){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   var userEmail=email.toLowerCase().trim();
-  // Use a separate unsub so it doesn't get cleared with other subs
   if(S._reqUnsub){S._reqUnsub();}
   S._reqUnsub=snap(q(col(db,'maintenanceRequests')),function(s){
-    S.myRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){
-      return (r.tenantEmail||'').toLowerCase().trim()===userEmail;
-    });
+    var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    var tp=S.tenantProfile;
+    if(tp&&tp.canMaintenance){
+      // Maintenance worker sees all requests for their landlord
+      S.myRequests=all.filter(function(r){return r.landlordUid===tp.landlordUid;});
+    } else {
+      S.myRequests=all.filter(function(r){return (r.tenantEmail||'').toLowerCase().trim()===userEmail;});
+    }
     render();
   });
 }
@@ -412,6 +416,11 @@ function toggleCanPost(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t)return;
   saveTenant(Object.assign({},t,{canPost:!t.canPost}));
+}
+function toggleMaintenanceAccess(id){
+  var t=S.tenants.find(function(x){return x.id===id;});
+  if(!t)return;
+  saveTenant(Object.assign({},t,{canMaintenance:!t.canMaintenance}));
 }
 
 function saveBulletinPost(post){var f=fb();return f.setDoc(f.doc(f.db,'bulletinPosts/'+post.id),post);}
@@ -724,7 +733,33 @@ function render(){
             ?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No announcements yet</div>'
             :S.bulletinPosts.slice(0,2).map(function(p){return '<div style="padding:12px 0;border-bottom:1px solid #2e2c3d"><div style="font-size:14px;font-weight:700">'+esc(p.title)+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(p.authorName)+' · '+p.date+'</div><div style="font-size:13px;color:#c0bdd8;margin-top:4px;line-height:1.5">'+esc(p.message)+'</div></div>';}).join('')
             +(S.bulletinPosts.length>2?'<div style="text-align:center;padding:8px 0"><button onclick="S.tenantBulletinPage=true;render()" style="background:none;border:none;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ '+(S.bulletinPosts.length-2)+' more posts</button></div>':''))
-        :'')+'</div>';
+        :'')+'</div>'
+        // Maintenance worker panel
+        +(t.canMaintenance?
+          '<div class="card" style="border:1px solid #f9731633;background:#f9731608"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">🔧 Maintenance Panel</div><button onclick="S.tenantMaintenancePage=true;render()" style="background:#f97316;border:none;border-radius:10px;padding:6px 14px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Open</button></div><div style="font-size:12px;color:#7c7a90">'+S.myRequests.length+' active request'+(S.myRequests.length===1?'':'s')+'</div></div>'
+        :'');
+    }
+    if(S.tenantMaintenancePage){
+      var allReqsSorted=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+      var mph='<div class="top-bar"><button onclick="S.tenantMaintenancePage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🔧 Maintenance Requests</div></div>'
+        +'<div style="padding:0 16px">'
+        +(allReqsSorted.length===0
+          ?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No requests yet</div></div>'
+          :allReqsSorted.map(function(r){
+            var uc=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';
+            return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'
+              +'<div style="flex:1"><div style="font-size:15px;font-weight:800">'+esc(r.title)+'</div>'
+              +'<div style="font-size:12px;color:#7c7a90;margin-top:2px">'+esc(r.tenantName||r.tenantEmail||'')+(r.unit?' · Unit '+esc(r.unit):'')+'</div>'
+              +(r.description?'<div style="font-size:13px;color:#c0bdd8;margin-top:6px;line-height:1.5">'+esc(r.description)+'</div>':'')
+              +'<div style="font-size:11px;color:#7c7a90;margin-top:6px">'+r.date+'</div></div>'
+              +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:10px">'+pill(r.urgency,uc)
+              +'<select onchange="updateRequestStatus(\''+r.id+'\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:8px;min-width:100px"><option'+(r.status==='New'?' selected':'')+'>New</option><option'+(r.status==='In Progress'?' selected':'')+'>In Progress</option><option'+(r.status==='Done'?' selected':'')+'>Done</option></select>'
+              +'<button onclick="if(confirm(\'Remove this request?\'))fsDel(\'maintenanceRequests/\'+\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:4px 8px;cursor:pointer;color:#f87171;font-size:11px;font-family:Nunito,sans-serif">Remove</button>'
+              +'</div></div></div>';
+          }).join(''))
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+mph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+      return;
     }
     if(S.tenantBulletinPage){
       var tp2=S.tenantProfile;
@@ -848,6 +883,7 @@ function render(){
         +(t.name2?'<div class="card-row"><span style="font-size:14px;color:#7c7a90">Secondary Tenant</span><span style="font-size:14px;font-weight:600">'+esc(t.name2)+'</span></div>':'')
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔒 Locks Changed</span><div onclick="toggleLocks(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.locksChanged?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.locksChanged?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">📋 Can Post on Bulletin</span><div onclick="toggleCanPost(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canPost?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canPost?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+        +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔧 Maintenance Access</span><div onclick="toggleMaintenanceAccess(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canMaintenance?'#f97316':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canMaintenance?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'</div>'
         +'<button class="btn btn-primary" onclick="togglePaid(\''+t.id+'\')">'+( t.paid?'Mark as Unpaid':'✓ Mark as Paid')+'</button>'
         +'<button class="btn btn-secondary" onclick="openSheet(\'editTenant\',JSON.parse(JSON.stringify(S.tenants.find(function(x){return x.id===\''+t.id+'\';}) || {})))">✏️ Edit Tenant Info</button>'

@@ -111,8 +111,8 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, receiptTypeFilter:'all', showAllUtils:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', receiptTypeFilter:'all', showAllUtils:false,
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -135,6 +135,7 @@ function subscribeLandlord(uid){
   subscribeUtilities(uid);
   subscribeRequests(uid);
   subscribeBulletin();
+  subscribeTodos(uid);
   carryOverLockedUtils(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
@@ -232,7 +233,27 @@ function updateRequestStatus(id,status){
   return fsSet('maintenanceRequests/'+id,Object.assign({},r,{status:status}));
 }
 
-function subscribeRequests(uid){
+function subscribeTodos(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/todos')),function(s){
+    S.todoItems=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(a.createdAt)-new Date(b.createdAt);});
+    render();
+  }));
+}
+function addTodo(){
+  var text=(S.todoInput||'').trim();
+  if(!text)return;
+  fsSet('users/'+S.user.uid+'/todos/'+mkid(),{text:text,done:false,createdAt:new Date().toISOString()});
+  S.todoInput='';
+  render();
+}
+function toggleTodo(id){
+  var t=S.todoItems.find(function(x){return x.id===id;});
+  if(!t)return;
+  fsSet('users/'+S.user.uid+'/todos/'+id,Object.assign({},t,{done:!t.done}));
+}
+function delTodo(id){fsDel('users/'+S.user.uid+'/todos/'+id);}
+
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
     S.maintenanceRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.landlordUid===uid;});
@@ -955,10 +976,24 @@ function _doRender(){
       return new Date(b.date)-new Date(a.date);
     });
     var newCount=allReqs.filter(function(r){return r.status==='New';}).length;
+    var doneTodos=S.todoItems.filter(function(t){return t.done;}).length;
+    var totalTodos=S.todoItems.length;
     c='<div class="top-bar"><div class="page-title">Maintenance</div>'
       +(newCount>0?'<div style="background:#f8717122;border-radius:10px;padding:5px 12px"><span style="font-size:12px;color:#f87171;font-weight:700">'+newCount+' New</span></div>':'')
       +'</div>'
       +'<div style="padding:0 16px">'
+      // To-Do Checklist
+      +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">✅ To-Do List'+(totalTodos>0?' <span style="font-size:11px;color:#7c7a90;font-weight:400">'+doneTodos+'/'+totalTodos+' done</span>':'')+'</div></div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:12px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0"/><button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:12px;padding:8px 16px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>'
+      +(S.todoItems.length===0?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No tasks yet</div>'
+        :S.todoItems.map(function(t){
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #2e2c3d">'
+            +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+            +'<span style="flex:1;font-size:14px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+            +'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.trash+'</button>'
+            +'</div>';
+        }).join(''))
+      +'</div>'
       +(allReqs.length===0?'<div style="text-align:center;color:#7c7a90;padding:40px 0"><div style="font-size:36px;margin-bottom:12px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No requests yet</div><div style="font-size:13px">Tenant requests will appear here</div></div>'
         :allReqs.map(function(r){
           var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';

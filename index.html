@@ -108,7 +108,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'login',
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, receiptTypeFilter:'all', showAllUtils:false,
@@ -354,11 +354,18 @@ function makePDF(t,month,year){
 // ── Actions ────────────────────────────────────────────────────────
 function doAuth(){
   var f=fb();
+  var isSignup=S.authMode==='tenant';
+  if(isSignup&&S.authPassword!==S.authConfirmPassword){
+    S.authError='Passwords do not match!';render();return;
+  }
+  if(isSignup&&S.authPassword.length<6){
+    S.authError='Password needs 6+ characters.';render();return;
+  }
   S.authLoading=true;S.authError='';render();
   var p=S.authMode==='login'||S.authMode==='tenantLogin'
     ?f.signInWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword)
     :f.createUserWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword);
-  p.then(function(){S.authLoading=false;}).catch(function(e){
+  p.then(function(){S.authLoading=false;S.authConfirmPassword='';}).catch(function(e){
     S.authError=e.code==='auth/invalid-credential'?'Incorrect email or password.':e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message;
     S.authLoading=false;render();
   });
@@ -648,6 +655,7 @@ function render(){
   }
 
   if(!S.user){
+    var isSignup=S.authMode==='tenant';
     root.innerHTML='<div class="auth-wrap">'
       +'<div style="font-size:32px;font-weight:900;margin-bottom:4px;letter-spacing:-1px">RellikRentals</div>'
       +'<div style="font-size:13px;color:#7c7a90;margin-bottom:40px;font-weight:600">'+(S.authMode==='tenant'||S.authMode==='tenantLogin'?'Tenant Portal':'Property Management')+'</div>'
@@ -656,7 +664,8 @@ function render(){
       +(S.authError?'<div class="auth-error">'+esc(S.authError)+'</div>':'')
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
-      +'<div><label>Password</label><input type="password" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
+      +'<div><label>Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/><button onclick="S.showPassword=!S.showPassword;render()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7c7a90;font-size:16px;padding:0">'+(S.showPassword?'🙈':'👁')+'</button></div></div>'
+      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
@@ -666,7 +675,7 @@ function render(){
       +'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenant'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenant'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Sign Up</button>'
       +'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenantLogin'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenantLogin'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Login</button>'
       +'</div></div>'
-      +(S.authMode!=='login'?'<div style="text-align:center;margin-top:14px;font-size:13px"><button onclick="S.authMode=\'login\';S.authError=\'\';render()" style="background:none;border:none;color:#6366f1;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to login</button></div>':'')
+      +(S.authMode!=='tenantLogin'?'<div style="text-align:center;margin-top:14px;font-size:13px"><button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:none;border:none;color:#6366f1;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to login</button></div>':'')
       +'</div></div>';
     return;
   }

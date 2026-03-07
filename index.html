@@ -228,7 +228,7 @@ function delProp(id){return fsDel('users/'+S.user.uid+'/properties/'+id);}
 
 function saveRequest(r){return fsSet('maintenanceRequests/'+r.id,r);}
 function updateRequestStatus(id,status){
-  var r=S.maintenanceRequests.find(function(x){return x.id===id;});
+  var r=S.maintenanceRequests.find(function(x){return x.id===id;})||S.myRequests.find(function(x){return x.id===id;});
   if(!r)return;
   return fsSet('maintenanceRequests/'+id,Object.assign({},r,{status:status}));
 }

@@ -797,7 +797,7 @@ function _doRender(){
       +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
-      +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="text-align:center;margin-top:8px"><button onclick="doForgotPassword()" style="background:none;border:none;color:#7c7a90;font-size:12px;font-weight:600;cursor:pointer;font-family:Nunito,sans-serif">Forgot Password?</button></div>':'')
+      +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="text-align:center;margin-top:8px"><button onclick="doForgotPassword()" style="background:#6366f111;border:1px solid #6366f133;border-radius:10px;color:#6366f1;font-size:12px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;padding:8px 20px;width:100%">Forgot Password?</button></div>':'')
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
       +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'

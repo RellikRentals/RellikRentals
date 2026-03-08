@@ -303,6 +303,7 @@ function subscribeManagerData(uid){
   subscribeTodos(uid);
 }
 
+function subscribeRequests(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
     S.maintenanceRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.landlordUid===uid;});

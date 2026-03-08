@@ -453,7 +453,8 @@ function doAuth(){
 }
 
 function doForgotPassword(){
-  var email=(S.authEmail||'').trim();
+  var emailInput=document.querySelector('input[type="email"]');
+  var email=(S.authEmail||'').trim()||(emailInput?emailInput.value.trim():'');
   if(!email){alert('Please enter your email address first.');return;}
   var auth=getAuth();
   sendPasswordResetEmail(auth,email).then(function(){

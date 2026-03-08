@@ -112,8 +112,8 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -176,6 +176,9 @@ function subscribeTenantPortal(email){
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid){
         subscribeTodos(S.tenantProfile.landlordUid);
       }
+      if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid){
+        subscribeManagerData(S.tenantProfile.landlordUid);
+      }
     }
     render();
   }));
@@ -193,7 +196,7 @@ function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false}));}
+  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false,canPropertyManager:t.canPropertyManager||false}));}
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -279,7 +282,27 @@ function subscribeMileage(uid){
 function saveMileage(m){return fsSet('users/'+S.user.uid+'/mileage/'+m.id,m);}
 function delMileage(id){return fsDel('users/'+S.user.uid+'/mileage/'+id);}
 
-function subscribeRequests(uid){
+function subscribeManagerData(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){
+    S.managerTenants=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){
+    S.managerReceipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){
+    S.managerProperties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/utilities')),function(s){
+    S.managerUtilities=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
+  subscribeTodos(uid);
+}
+
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'maintenanceRequests')),function(s){
     S.maintenanceRequests=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).filter(function(r){return r.landlordUid===uid;});
@@ -479,6 +502,11 @@ function toggleMaintenanceAccess(id){
   if(!t)return;
   saveTenant(Object.assign({},t,{canMaintenance:!t.canMaintenance}));
 }
+function togglePropertyManagerAccess(id){
+  var t=S.tenants.find(function(x){return x.id===id;});
+  if(!t)return;
+  saveTenant(Object.assign({},t,{canPropertyManager:!t.canPropertyManager}));
+}
 
 function saveBulletinPost(post){var f=fb();return f.setDoc(f.doc(f.db,'bulletinPosts/'+post.id),post);}
 function delBulletinPost(id){var f=fb();return f.deleteDoc(f.doc(f.db,'bulletinPosts/'+id));}
@@ -636,6 +664,7 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
+      {v:'4.0',items:['Property Manager role — full dashboard access for a trusted stand-in','Managers can view all tenants, rent status, YTD expenses, and properties','Managers have full to-do list access — add, check off, and delete','Managers can update maintenance request statuses','Managers can view recent expenses (read only — no add or delete)','Purple 🏢 Property Manager toggle on tenant profile (landlord only)']},
       {v:'3.1',items:['Forgot Password — reset link sent via Firebase to your email','Works on both Landlord and Tenant login screens']},
       {v:'3.0.1',items:['Receipts — shows 3 most recent, View All sorted newest first','Mileage trips — shows 5 most recent, View All sorted newest first','Green badge on Requests tab shows completed to-do items','Hero banner mileage now filters by selected property','To-do list visible and interactive for maintenance workers']},
       {v:'3.0',items:['Mileage tracker in Expenses tab — log drives with date, distance, property & notes','Mileage summary on hero banner — monthly total at a glance','Expenses tab rename (formerly Receipts)','Maintenance worker to-do permissions — can check off but not add or delete','Desktop display — app centered with shadow on large screens']},
@@ -655,7 +684,7 @@ function renderSheet(){
         return '<div style="margin-bottom:20px">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
           +'<span style="background:#6366f122;color:#6366f1;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
-          +(ver.v==='3.1'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +(ver.v==='4.0'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
           +'</div>'
           +ver.items.map(function(item){return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #2e2c3d"><span style="color:#6366f1;font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:#f0eef8">'+item+'</span></div>';}).join('')
           +'</div>';
@@ -822,7 +851,97 @@ function _doRender(){
         // Maintenance worker panel
         +(t.canMaintenance?
           '<div class="card" style="border:1px solid #f9731633;background:#f9731608"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">🔧 Maintenance Panel</div><button onclick="S.tenantMaintenancePage=true;render()" style="background:#f97316;border:none;border-radius:10px;padding:6px 14px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Open</button></div><div style="font-size:12px;color:#7c7a90">'+S.myRequests.length+' active request'+(S.myRequests.length===1?'':'s')+'</div></div>'
+        :'')
+        // Property Manager panel
+        +(t.canPropertyManager?
+          '<div class="card" style="border:1px solid #8b5cf633;background:#8b5cf608"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:14px;font-weight:700">🏢 Manager Dashboard</div><button onclick="S.propertyManagerPage=true;render()" style="background:#8b5cf6;border:none;border-radius:10px;padding:6px 14px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Open</button></div><div style="font-size:12px;color:#7c7a90">'+(S.managerProperties||[]).length+' propert'+((S.managerProperties||[]).length===1?'y':'ies')+' · '+(S.managerTenants||[]).length+' tenant'+((S.managerTenants||[]).length===1?'':'s')+'</div></div>'
         :'');
+    }
+    if(S.propertyManagerPage){
+      var mgTenants=S.managerTenants||[];
+      var mgReceipts=S.managerReceipts||[];
+      var mgProps=S.managerProperties||[];
+      var mgUtils=S.managerUtilities||[];
+      var mgRequests=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+      var curDate=new Date();
+      var curY=curDate.getFullYear();
+      var curM=curDate.getMonth();
+      // YTD income
+      var ytdIncome=mgTenants.reduce(function(a,t){return a+(Number(t.rent)||0);},0)*( curM+1);
+      // Total expenses YTD
+      var ytdExp=mgReceipts.filter(function(r){return (r.date||'').startsWith(String(curY));}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
+      // Paid/unpaid this month
+      var paidCount=mgTenants.filter(function(t){return t.paid;}).length;
+      var unpaidCount=mgTenants.filter(function(t){return !t.paid;}).length;
+      var totalRent=mgTenants.reduce(function(a,t){return a+(Number(t.rent)||0);},0);
+      // To-do
+      var mgDone=S.todoItems.filter(function(t){return t.done;}).length;
+      var mgTotal=S.todoItems.length;
+
+      var pmh='<div class="top-bar"><button onclick="S.propertyManagerPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🏢 Manager Dashboard</div></div>'
+        +'<div style="padding:0 16px">'
+        // Hero stats
+        +'<div class="card" style="background:linear-gradient(135deg,#1e1b2e,#2a2640);border:1px solid #8b5cf633;margin-bottom:8px">'
+        +'<div style="font-size:12px;color:#8b5cf6;font-weight:700;margin-bottom:8px">PORTFOLIO OVERVIEW</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+        +'<div><div style="font-size:11px;color:#7c7a90">Monthly Rent Roll</div><div style="font-size:20px;font-weight:800;color:#4ade80">'+fmt(totalRent)+'</div></div>'
+        +'<div><div style="font-size:11px;color:#7c7a90">YTD Expenses</div><div style="font-size:20px;font-weight:800;color:#f87171">'+fmtS(ytdExp)+'</div></div>'
+        +'<div><div style="font-size:11px;color:#7c7a90">Paid This Month</div><div style="font-size:20px;font-weight:800;color:#4ade80">'+paidCount+' / '+mgTenants.length+'</div></div>'
+        +'<div><div style="font-size:11px;color:#7c7a90">Properties</div><div style="font-size:20px;font-weight:800;color:#8b5cf6">'+mgProps.length+'</div></div>'
+        +'</div></div>'
+        // To-do list — full access for manager
+        +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        +'<div style="font-size:13px;font-weight:700">✅ To-Do List'+(mgTotal>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+mgDone+'/'+mgTotal+' done</span>':'')+'</div>'
+        +'<div style="display:flex;gap:6px;align-items:center"><input id="mgTodoInput" placeholder="Add task…" onkeydown="if(event.key===\'Enter\'&&this.value.trim()){addTodo(this.value.trim());this.value=\'\';}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:5px 10px;color:#f0eef8;font-size:12px;width:140px;font-family:Nunito,sans-serif"/></div>'
+        +'</div>'
+        +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
+          :S.todoItems.map(function(t){
+            return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
+              +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+              +'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>'
+              +'</div>';
+          }).join(''))
+        +'</div>'
+        // Tenants
+        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">👥 Tenants</div>'
+        +(mgTenants.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No tenants</div>'
+          :[].concat(mgTenants).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(t){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d">'
+              +'<div><div style="font-size:13px;font-weight:700">'+esc(t.name)+'</div>'
+              +'<div style="font-size:11px;color:#7c7a90">'+esc(t.property||'')+(t.unit?' · Unit '+esc(t.unit):'')+'</div></div>'
+              +'<div style="display:flex;align-items:center;gap:8px"><div style="font-size:13px;font-weight:700;color:#6366f1">'+fmt(t.rent)+'</div>'+pill(t.paid?'✓ Paid':'⏳ Unpaid',t.paid?'#4ade80':'#fbbf24')+'</div>'
+              +'</div>';
+          }).join(''))
+        +'</div>'
+        // Maintenance requests
+        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">🔧 Maintenance Requests</div>'
+        +(mgRequests.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No requests</div>'
+          :mgRequests.map(function(r){
+            var uc=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';
+            return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d">'
+              +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+              +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+esc(r.title)+'</div>'
+              +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(r.tenantName||r.tenantEmail||'')+(r.unit?' · Unit '+esc(r.unit):'')+'</div></div>'
+              +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">'+pill(r.urgency,uc)
+              +'<select onchange="updateRequestStatus(\''+r.id+'\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:8px;min-width:100px"><option'+(r.status==='New'?' selected':'')+'>New</option><option'+(r.status==='In Progress'?' selected':'')+'>In Progress</option><option'+(r.status==='Done'?' selected':'')+'>Done</option></select>'
+              +'</div></div></div>';
+          }).join(''))
+        +'</div>'
+        // Recent expenses (read only)
+        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">💸 Recent Expenses</div>'
+        +(mgReceipts.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No expenses</div>'
+          :mgReceipts.slice(0,5).map(function(r){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d">'
+              +'<div><div style="font-size:13px;font-weight:700">'+esc(r.vendor)+'</div>'
+              +'<div style="font-size:11px;color:#7c7a90">'+r.date+' · '+esc(r.category)+'</div></div>'
+              +'<div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div>'
+              +'</div>';
+          }).join(''))
+        +'</div>'
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+pmh+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+      return;
     }
     if(S.tenantMaintenancePage){
       var allReqsSorted=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
@@ -869,7 +988,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.1</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.0</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -940,7 +1059,7 @@ function _doRender(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -1009,6 +1128,7 @@ function _doRender(){
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔒 Locks Changed</span><div onclick="toggleLocks(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.locksChanged?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.locksChanged?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">📋 Can Post on Bulletin</span><div onclick="toggleCanPost(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canPost?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canPost?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔧 Maintenance Access</span><div onclick="toggleMaintenanceAccess(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canMaintenance?'#f97316':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canMaintenance?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+        +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🏢 Property Manager</span><div onclick="togglePropertyManagerAccess(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canPropertyManager?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canPropertyManager?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'</div>'
         +'<button class="btn btn-primary" onclick="togglePaid(\''+t.id+'\')">'+( t.paid?'Mark as Unpaid':'✓ Mark as Paid')+'</button>'
         +'<button class="btn btn-secondary" onclick="openSheet(\'editTenant\',JSON.parse(JSON.stringify(S.tenants.find(function(x){return x.id===\''+t.id+'\';}) || {})))">✏️ Edit Tenant Info</button>'

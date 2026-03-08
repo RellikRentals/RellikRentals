@@ -112,7 +112,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -250,10 +250,12 @@ function subscribeTodos(uid){
     render();
   }));
 }
-function addTodo(){
-  var text=(S.todoInput||'').trim();
+function addTodo(textArg){
+  var text=textArg||(S.todoInput||'').trim();
   if(!text)return;
-  fsSet('users/'+S.user.uid+'/todos/'+mkid(),{text:text,done:false,createdAt:new Date().toISOString()});
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsSet('users/'+uid+'/todos/'+mkid(),{text:text,done:false,createdAt:new Date().toISOString()});
   S.todoInput='';
   render();
 }
@@ -270,7 +272,11 @@ function doSaveMileage(){
   closeSheet();
   saveMileage({id:mkid(),date:d.date,distance:Number(d.distance),unit:d.unit||'km',property:d.property||'Other',notes:d.notes||''});
 }
-function delTodo(id){fsDel('users/'+S.user.uid+'/todos/'+id);}
+function delTodo(id){
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsDel('users/'+uid+'/todos/'+id);
+}
 
 function subscribeMileage(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
@@ -859,11 +865,11 @@ function _doRender(){
         :'');
     }
     if(S.propertyManagerPage){
-      var mgTenants=S.managerTenants||[];
-      var mgReceipts=S.managerReceipts||[];
+      var mgTenants=(S.managerTenants||[]).filter(function(t){return S.mgPropertyFilter==='all'||t.property===S.mgPropertyFilter;});
+      var mgReceipts=(S.managerReceipts||[]).filter(function(r){return S.mgPropertyFilter==='all'||r.property===S.mgPropertyFilter;});
       var mgProps=S.managerProperties||[];
-      var mgUtils=S.managerUtilities||[];
-      var mgRequests=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+      var mgUtils=(S.managerUtilities||[]).filter(function(u){return S.mgPropertyFilter==='all'||u.property===S.mgPropertyFilter;});
+      var mgRequests=[].concat(S.myRequests).filter(function(r){return S.mgPropertyFilter==='all'||r.property===S.mgPropertyFilter;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
       var curDate=new Date();
       var curY=curDate.getFullYear();
       var curM=curDate.getMonth();
@@ -881,6 +887,10 @@ function _doRender(){
 
       var pmh='<div class="top-bar"><button onclick="S.propertyManagerPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🏢 Manager Dashboard</div></div>'
         +'<div style="padding:0 16px">'
+        +'<select onchange="S.mgPropertyFilter=this.value;render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 14px;color:#f0eef8;font-size:14px;font-weight:700;width:100%;margin-bottom:12px">'
+        +'<option value="all"'+(S.mgPropertyFilter==='all'?' selected':'')+'>🏢 All Properties</option>'
+        +mgProps.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.mgPropertyFilter===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
+        +'</select>'
         // Hero stats
         +'<div class="card" style="background:linear-gradient(135deg,#1e1b2e,#2a2640);border:1px solid #8b5cf633;margin-bottom:8px">'
         +'<div style="font-size:12px;color:#8b5cf6;font-weight:700;margin-bottom:8px">PORTFOLIO OVERVIEW</div>'
@@ -893,7 +903,7 @@ function _doRender(){
         // To-do list — full access for manager
         +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
         +'<div style="font-size:13px;font-weight:700">✅ To-Do List'+(mgTotal>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+mgDone+'/'+mgTotal+' done</span>':'')+'</div>'
-        +'<div style="display:flex;gap:6px;align-items:center"><input id="mgTodoInput" placeholder="Add task…" onkeydown="if(event.key===\'Enter\'&&this.value.trim()){addTodo(this.value.trim());this.value=\'\';}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:5px 10px;color:#f0eef8;font-size:12px;width:140px;font-family:Nunito,sans-serif"/></div>'
+        +'<div style="display:flex;gap:6px;align-items:center"><input id="mgTodoInput" placeholder="Add task…" onkeydown="if(event.key===\'Enter\'&&this.value.trim()){addTodo(this.value.trim());this.value=\'\';}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:5px 10px;color:#f0eef8;font-size:12px;width:140px;font-family:Nunito,sans-serif"/><button onclick="var el=document.getElementById(\'mgTodoInput\');if(el&&el.value.trim()){addTodo(el.value.trim());el.value=\'\';}" style="background:#6366f1;border:none;border-radius:8px;padding:5px 10px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:Nunito,sans-serif">+</button></div>'
         +'</div>'
         +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
           :S.todoItems.map(function(t){

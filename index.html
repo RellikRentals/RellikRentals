@@ -65,7 +65,7 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
 window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs};
@@ -112,7 +112,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, todoInput:'', mileageFilter:null, receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -422,6 +422,16 @@ function doAuth(){
   });
 }
 
+function doForgotPassword(){
+  var email=(S.authEmail||'').trim();
+  if(!email){alert('Please enter your email address first.');return;}
+  var auth=getAuth();
+  sendPasswordResetEmail(auth,email).then(function(){
+    alert('Password reset email sent! Check your inbox.');
+  }).catch(function(e){
+    alert('Could not send reset email: '+e.message);
+  });
+}
 function doSignOut(){
   var f=fb();
   f.signOut(f.auth).then(function(){
@@ -626,7 +636,9 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
-      {v:'3.0',items:['Mileage tracker in Expenses tab — log drives with date, distance, property & notes','Mileage summary on hero banner — monthly total at a glance','Expenses tab rename (formerly Receipts)','Maintenance worker to-do permissions — can check off but not add or delete','Desktop display — app centered with shadow on large screens','Notification badge fixes']},
+      {v:'3.1',items:['Forgot Password — reset link sent via Firebase to your email','Works on both Landlord and Tenant login screens']},
+      {v:'3.0.1',items:['Receipts — shows 3 most recent, View All sorted newest first','Mileage trips — shows 5 most recent, View All sorted newest first','Green badge on Requests tab shows completed to-do items','Hero banner mileage now filters by selected property','To-do list visible and interactive for maintenance workers']},
+      {v:'3.0',items:['Mileage tracker in Expenses tab — log drives with date, distance, property & notes','Mileage summary on hero banner — monthly total at a glance','Expenses tab rename (formerly Receipts)','Maintenance worker to-do permissions — can check off but not add or delete','Desktop display — app centered with shadow on large screens']},
       {v:'2.9.1',items:['Notification badge on Requests tab — clears as requests move to In Progress','Notification badge on Bulletin tab — clears when viewed']},
       {v:'2.9',items:['Secondary tenant name on profiles & receipts','Default to Tenant Login on load','Show/hide password toggle on login','Confirm password field on tenant sign up','Maintenance worker role with full request panel']},
       {v:'2.8',items:['Capital vs Operating receipt filter','Filename reference on receipt cards','Utilities collapse with View All','Locked utility monthly carry-over','YTD expenses calculation fix']},
@@ -643,7 +655,7 @@ function renderSheet(){
         return '<div style="margin-bottom:20px">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
           +'<span style="background:#6366f122;color:#6366f1;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
-          +(ver.v==='3.0'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +(ver.v==='3.1'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
           +'</div>'
           +ver.items.map(function(item){return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #2e2c3d"><span style="color:#6366f1;font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:#f0eef8">'+item+'</span></div>';}).join('')
           +'</div>';
@@ -749,6 +761,7 @@ function _doRender(){
       +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
+      +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="text-align:center;margin-top:8px"><button onclick="doForgotPassword()" style="background:none;border:none;color:#7c7a90;font-size:12px;font-weight:600;cursor:pointer;font-family:Nunito,sans-serif">Forgot Password?</button></div>':'')
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
       +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
@@ -856,7 +869,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.0</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.1</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -871,16 +884,19 @@ function _doRender(){
 
   // Notification badges
   var newRequestCount=S.maintenanceRequests.filter(function(r){return r.status==='New';}).length;
+  var doneTodoBadge=S.todoItems.filter(function(t){return t.done;}).length;
   var lastSeenBulletinCount=parseInt(localStorage.getItem('lastSeenBulletinCount')||'0');
   var newBulletinCount=Math.max(0,S.bulletinPosts.length-lastSeenBulletinCount);
-  function badge(n){return n>0?'<span style="position:absolute;top:2px;right:10px;background:#f87171;color:#fff;font-size:9px;font-weight:800;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1">'+n+'</span>':'';}
+  function badge(n,color){return n>0?'<span style="position:absolute;top:2px;right:10px;background:'+(color||'#f87171')+';color:#fff;font-size:9px;font-weight:800;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1">'+n+'</span>':'';}
+  function badgeLeft(n,color){return n>0?'<span style="position:absolute;top:2px;left:10px;background:'+(color||'#4ade80')+';color:#fff;font-size:9px;font-weight:800;border-radius:99px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1">'+n+'</span>':'';}
 
   var nav='<nav class="bottom-nav">'
     +'<div class="nav-row">'
     +[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'payments',l:'Payments',i:ICO.dollar},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='maintenance'?badge(newRequestCount):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
+      var bl=tb.id==='maintenance'?badgeLeft(doneTodoBadge):'';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+bl+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div><div class="nav-row">'
     +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Expenses',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
@@ -924,7 +940,7 @@ function _doRender(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v3.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -1140,12 +1156,14 @@ function _doRender(){
         +S.properties.map(function(p){return '<button onclick="S.mileageFilter=\''+esc(p.name)+'\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter===p.name?'#6366f1':'#22202f')+';color:'+(S.mileageFilter===p.name?'#fff':'#7c7a90')+'">'+esc(p.name)+'</button>';}).join('')
         +'<button onclick="S.mileageFilter=\'Other\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter==='Other'?'#6366f1':'#22202f')+';color:'+(S.mileageFilter==='Other'?'#fff':'#7c7a90')+'">Other</button>'
         +'</div>'
-        +curMileageProp.map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
+        +curMileageProp.slice(0,S.showAllMileage?9999:5).map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
+        +(curMileageProp.length>5?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllMileage=!S.showAllMileage;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllMileage?'Show Less':'View All '+curMileageProp.length+' trips')+'</button></div>':'')
         +'</div>'
       :'')
       +(S.scanError?'<div style="background:#fbbf2422;border-radius:12px;padding:12px 14px;margin-bottom:12px;color:#fbbf24;font-size:13px">⚠️ '+esc(S.scanError)+'</div>':'')
       +(Object.keys(byCat).length>0?'<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none">'+Object.entries(byCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<div style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:8px 14px;white-space:nowrap;flex-shrink:0"><div style="font-size:11px;color:#7c7a90">'+esc(e[0])+'</div><div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(e[1])+'</div></div>';}).join('')+'</div>':'')
-      +filteredReceipts.map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')
+      +[].concat(filteredReceipts).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,S.showAllReceipts?9999:3).map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')
+      +(filteredReceipts.length>3?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllReceipts=!S.showAllReceipts;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllReceipts?'Show Less':'View All '+filteredReceipts.length+' receipts')+'</button></div>':'')
       +(filteredReceipts.length===0&&!S.scanning?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">'+(S.receiptTypeFilter==='all'?'No receipts yet':'No '+S.receiptTypeFilter+' receipts yet')+'</div>':'')
       +'</div>';
   }

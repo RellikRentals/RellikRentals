@@ -806,8 +806,20 @@ function _doRender(){
     }
     if(S.tenantMaintenancePage){
       var allReqsSorted=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
-      var mph='<div class="top-bar"><button onclick="S.tenantMaintenancePage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🔧 Maintenance Requests</div></div>'
+      var doneTodosM=S.todoItems.filter(function(t){return t.done;}).length;
+      var totalTodosM=S.todoItems.length;
+      var mph='<div class="top-bar"><button onclick="S.tenantMaintenancePage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🔧 Maintenance</div></div>'
         +'<div style="padding:0 16px">'
+        // To-do list for maintenance worker — can check off only
+        +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">✅ To-Do List'+(totalTodosM>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+doneTodosM+'/'+totalTodosM+' done</span>':'')+'</div></div>'
+        +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
+          :S.todoItems.map(function(t){
+            return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
+              +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+              +'</div>';
+          }).join(''))
+        +'</div>'
         +(allReqsSorted.length===0
           ?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No requests yet</div></div>'
           :allReqsSorted.map(function(r){
@@ -914,7 +926,11 @@ function _doRender(){
       // Mileage this month
       +(function(){
         var mn=S.viewMonth; var yr=S.viewYear;
-        var mLog=S.mileageLog.filter(function(m){return m.date&&m.date.startsWith(yr+'-'+String(mn+1).padStart(2,'0'));});
+        var mLog=S.mileageLog.filter(function(m){
+          var matchMonth=m.date&&m.date.startsWith(yr+'-'+String(mn+1).padStart(2,'0'));
+          var matchProp=S.selectedProperty==='all'||m.property===S.selectedProperty;
+          return matchMonth&&matchProp;
+        });
         var mTotal=mLog.reduce(function(a,m){return a+(Number(m.distance)||0);},0);
         var mUnit=mLog.length>0?mLog[0].unit:'km';
         return mTotal>0?'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px">🚗 '+mTotal+' '+mUnit+' this month</div>':'';

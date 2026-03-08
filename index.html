@@ -171,7 +171,12 @@ function subscribeTenantPortal(email){
   var p=pid(email);
   _unsubs.push(snap(q(col(db,'tenantProfiles')),function(s){
     var m=s.docs.find(function(d){return d.data().email===email;});
-    if(m){S.tenantProfile=Object.assign({},m.data(),{id:m.id});}
+    if(m){
+      S.tenantProfile=Object.assign({},m.data(),{id:m.id});
+      if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid){
+        subscribeTodos(S.tenantProfile.landlordUid);
+      }
+    }
     render();
   }));
   _unsubs.push(snap(q(col(db,'tenantReceipts/'+p+'/receipts')),function(s){
@@ -252,7 +257,9 @@ function addTodo(){
 function toggleTodo(id){
   var t=S.todoItems.find(function(x){return x.id===id;});
   if(!t)return;
-  fsSet('users/'+S.user.uid+'/todos/'+id,Object.assign({},t,{done:!t.done}));
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsSet('users/'+uid+'/todos/'+id,Object.assign({},t,{done:!t.done}));
 }
 function doSaveMileage(){
   var d=S.sheetData;

@@ -647,7 +647,7 @@ function closeSheet(){S.sheet=null;S.sheetData={};document.querySelectorAll('.sh
 function toggleReceiptSel(id){S.selectedForReceipt=S.selectedForReceipt.includes(id)?S.selectedForReceipt.filter(function(x){return x!==id;}):[...S.selectedForReceipt,id];renderSheet();}
 
 function inp(lbl,type,val,key,ph){
-  return '<div><label>'+lbl+'</label><input type="'+type+'" placeholder="'+(ph||lbl)+'" value="'+esc(val)+'" oninput="S.sheetData[\''+key+'\']=this.value"/></div>';
+  return '<div><label>'+lbl+'</label><input type="'+type+'" placeholder="'+(ph||lbl)+'" value="'+esc(val)+'" oninput="S.sheetData[\''+key+'\']=this.value" onchange="S.sheetData[\''+key+'\']=this.value"/></div>';
 }
 
 function renderSheet(){

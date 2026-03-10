@@ -78,7 +78,10 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
+const VAPID_KEY = "BMyV_reWS4TMbdXN-HC5wPQc1C7AaSXUpL9tgrbXmOanl10gKRh0Oh_GOG_exVB0Onx6-1yhWgxj9yW-0j8WLjE";
+var _messaging = null;
 window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs};
 window.dispatchEvent(new Event('fbReady'));
 </script>
@@ -256,6 +259,10 @@ function saveRequest(r){return fsSet('maintenanceRequests/'+r.id,r);}
 function updateRequestStatus(id,status){
   var r=S.maintenanceRequests.find(function(x){return x.id===id;})||S.myRequests.find(function(x){return x.id===id;});
   if(!r)return;
+  // Notify tenant that their request status changed
+  if(r.tenantUid){
+    sendPushNotification(r.tenantUid,true,'🔧 Maintenance Update','Your request "'+r.title+'" is now '+status+'.','maintenance_'+id);
+  }
   return fsSet('maintenanceRequests/'+id,Object.assign({},r,{status:status}));
 }
 
@@ -564,7 +571,15 @@ function togglePropertyManagerAccess(id){
   saveTenant(Object.assign({},t,{canPropertyManager:!t.canPropertyManager}));
 }
 
-function saveBulletinPost(post){var f=fb();return f.setDoc(f.doc(f.db,'bulletinPosts/'+post.id),post);}
+function saveBulletinPost(post){
+  var f=fb();
+  // Notify landlord if tenant posted, or could notify all tenants if landlord posted
+  // For now notify landlord of new tenant posts
+  if(post.landlordUid===null&&S.tenantProfile&&S.tenantProfile.landlordUid){
+    sendPushNotification(S.tenantProfile.landlordUid,false,'📋 New Bulletin Post',(post.authorName||'A tenant')+' posted: "'+post.title+'"','bulletin_new');
+  }
+  return f.setDoc(f.doc(f.db,'bulletinPosts/'+post.id),post);
+}
 function delBulletinPost(id){var f=fb();return f.deleteDoc(f.doc(f.db,'bulletinPosts/'+id));}
 function subscribeBulletin(){
   var f=fb();
@@ -800,13 +815,20 @@ function doSubmitRequest(){
     status:'New',
     tenantEmail:tp.email||S.user.email,
     tenantName:tp.name||'',
+    tenantUid:S.user.uid,
     unit:tp.unit||'',
     property:tp.property||'',
     landlordUid:tp.landlordUid||'',
     date:new Date().toISOString().slice(0,10)
   };
   closeSheet();
-  saveRequest(r).then(function(){render();}).catch(function(e){alert('Could not submit: '+e.message);});
+  saveRequest(r).then(function(){
+    // Notify landlord of new request
+    if(r.landlordUid){
+      sendPushNotification(r.landlordUid,false,'🔧 New Maintenance Request',r.tenantName+': "'+r.title+'" ('+r.urgency+' urgency)','maintenance_new');
+    }
+    render();
+  }).catch(function(e){alert('Could not submit: '+e.message);});
 }
 function makePDFFromReceipt(rid){
   var r=S.receipts.find(function(x){return x.id===rid;});
@@ -1400,6 +1422,7 @@ function initApp(){
       }else{
         S.isTenant=true; subscribeTenantPortal(user.email.toLowerCase());
       }
+      initNotifications();
     }else{
       S.isTenant=false; S.tenantProfile=null;
     }
@@ -1407,12 +1430,59 @@ function initApp(){
   });
 }
 
+function initNotifications(){
+  if(!('serviceWorker' in navigator)||!('Notification' in window))return;
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    _messaging=getMessaging(app);
+    // Handle foreground messages
+    onMessage(_messaging,function(payload){
+      var title=payload.notification?.title||'RellikRentals';
+      var body=payload.notification?.body||'';
+      if(Notification.permission==='granted'){
+        new Notification(title,{body:body,icon:'manifest.json'});
+      }
+    });
+    // Request permission and get token
+    if(Notification.permission==='default'){
+      Notification.requestPermission().then(function(perm){
+        if(perm==='granted') getFCMToken(reg);
+      });
+    } else if(Notification.permission==='granted'){
+      getFCMToken(reg);
+    }
+  }).catch(function(e){console.log('SW registration failed:',e);});
+}
+
+function getFCMToken(reg){
+  if(!_messaging)return;
+  getToken(_messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:reg}).then(function(token){
+    if(token&&S.user){
+      // Store FCM token in Firestore against this user
+      var f=fb();
+      var uid=S.isTenant?(S.tenantProfile?S.tenantProfile.id:S.user.uid):S.user.uid;
+      var path=S.isTenant?'tenantProfiles/'+uid:'users/'+uid;
+      f.setDoc(f.doc(f.db,path+'/fcmTokens/'+token.slice(-20)),{token:token,updated:new Date().toISOString()},{merge:true}).catch(function(){});
+    }
+  }).catch(function(e){console.log('FCM token error:',e);});
+}
+
+function sendPushNotification(toUid, isTenantTarget, title, body, tag){
+  // Write notification request to Firestore — Cloudflare Worker picks it up
+  var f=fb();
+  var notifId=mkid();
+  f.setDoc(f.doc(f.db,'notificationQueue/'+notifId),{
+    toUid:toUid,
+    isTenant:isTenantTarget,
+    title:title,
+    body:body,
+    tag:tag||'rellikrentals',
+    createdAt:new Date().toISOString(),
+    sent:false
+  }).catch(function(){});
+}
+
 if(window._fb){initApp();}else{window.addEventListener('fbReady',initApp);}
 
-if('serviceWorker'in navigator){
-  var sw="const C='rrv4';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll([self.location.href]))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));";
-  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(function(){});
-}
 </script>
 </body>
 </html>

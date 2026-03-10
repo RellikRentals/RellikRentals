@@ -1368,7 +1368,7 @@ function _doRender(){
         :'<div style="margin-bottom:10px">'+ICO.upload+'</div><div style="font-weight:700;margin-bottom:4px">Tap to upload receipt</div><div style="font-size:13px;color:#7c7a90">AI reads the total automatically</div>')
       +'</div>'
       // Mileage tracker button
-      +'<button onclick="openSheet(\'addMileage\',{unit:\'km\'})" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:12px;color:#f0eef8;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">🚗 Log Mileage</button>'
+      +'<button onclick="openSheet(\'addMileage\',{unit:\'km\',date:new Date().toISOString().slice(0,10)})" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:12px;color:#f0eef8;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px">🚗 Log Mileage</button>'
       // Mileage summary card
       +(S.mileageLog.length>0?
         '<div class="card" style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:700">🚗 Mileage This Month</div><div style="font-size:18px;font-weight:800;color:#6366f1">'+totalMiles+' '+mileUnit+'</div></div>'

@@ -1466,11 +1466,14 @@ function getFCMToken(reg,messaging){
   var f=fb();
   f.getToken(messaging,{vapidKey:window.VAPID_KEY,serviceWorkerRegistration:reg}).then(function(token){
     if(token&&S.user){
+      alert('FCM Token obtained! Storing...');
       var uid=S.isTenant?(S.tenantProfile?S.tenantProfile.id:S.user.uid):S.user.uid;
       var path=S.isTenant?'tenantProfiles/'+uid:'users/'+uid;
       f.setDoc(f.doc(f.db,path+'/fcmTokens/'+token.slice(-20)),{token:token,updated:new Date().toISOString()},{merge:true}).catch(function(){});
+    } else {
+      alert('FCM: No token returned. Permission: '+Notification.permission);
     }
-  }).catch(function(e){console.log('FCM token error:',e);});
+  }).catch(function(e){alert('FCM token error: '+e.message);});
 }
 
 function sendPushNotification(toUid, isTenantTarget, title, body, tag){

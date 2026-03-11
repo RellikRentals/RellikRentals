@@ -79,7 +79,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
-window.VAPID_KEY = "BMyV_reWS4TMbdXN-HC5wPQc1C7AaSXUpL9tgrbXmOanl10gKRh0Oh_GOG_exVB0Onx6-1yhWgxj9yW-0j8WLjE";
+window.VAPID_KEY = "BAWODm4KTDPOAZkFsu3yaXIGMHqiVMgdq23UiRWoAsghhNkOCxd3dcDVbsF5AolyKNeO9SUW5fGbcNCbTO3XeHo";
 var _messaging = null;
 var _fcmMessaging = getMessaging(app);
 window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs,fcmMessaging:_fcmMessaging,getToken,onMessage};

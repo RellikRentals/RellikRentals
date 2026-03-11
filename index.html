@@ -1348,8 +1348,44 @@ function _doRender(){
   }
 
   else if(S.tab==='settings'){
+    var propCount=S.properties.length;
+    var tenantCount=S.tenants.length;
+    var paidCount=S.tenants.filter(function(t){return t.paid;}).length;
+    var initials=S.user&&S.user.email?S.user.email.slice(0,2).toUpperCase():'RL';
     c='<div class="top-bar"><div class="page-title">Settings</div></div>'
-      +'<div style="padding:0 16px"><div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">⚙️</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">Coming Soon</div><div style="font-size:13px">App settings and preferences</div></div></div>';
+      +'<div style="padding:0 16px">'
+      // Profile card
+      +'<div class="card" style="text-align:center;padding:28px 16px 24px">'
+      +'<div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:#fff;margin:0 auto 14px">'+initials+'</div>'
+      +'<div style="font-size:20px;font-weight:800;color:#f0eef8;margin-bottom:4px">'+esc(S.user?S.user.email:'')+'</div>'
+      +'<div style="font-size:12px;color:#7c7a90;margin-bottom:16px">Landlord · RellikRentals</div>'
+      +'<div style="display:flex;justify-content:center;gap:16px">'
+      +'<div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#6366f1">'+propCount+'</div><div style="font-size:11px;color:#7c7a90">Properties</div></div>'
+      +'<div style="width:1px;background:#2e2c3d"></div>'
+      +'<div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#4ade80">'+tenantCount+'</div><div style="font-size:11px;color:#7c7a90">Tenants</div></div>'
+      +'<div style="width:1px;background:#2e2c3d"></div>'
+      +'<div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#fbbf24">'+paidCount+'/'+tenantCount+'</div><div style="font-size:11px;color:#7c7a90">Paid</div></div>'
+      +'</div>'
+      +'</div>'
+      // Notifications section
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">NOTIFICATIONS</div>'
+      +'<div class="card" style="padding:0">'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#f0eef8">🔔 Push Notifications</span><div onclick="initNotifications()" style="width:48px;height:26px;border-radius:99px;background:#4ade80;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:23px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+      +'</div>'
+      // Account section
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ACCOUNT</div>'
+      +'<div class="card" style="padding:0">'
+      +'<div class="card-row" style="padding:14px 16px;cursor:pointer" onclick="if(confirm(\'Sign out?\'))fb().signOut(fb().auth)"><span style="font-size:14px;color:#f87171">🚪 Sign Out</span><span style="color:#7c7a90">›</span></div>'
+      +'</div>'
+      // About section
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
+      +'<div class="card" style="padding:0">'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.2</span></div>'
+      +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
+      +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
+      +'</div>'
+      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
+      +'</div>';
   }
 
   else if(S.tab==='receipts'){

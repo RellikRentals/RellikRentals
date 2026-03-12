@@ -22,8 +22,8 @@ messaging.onBackgroundMessage(function(payload) {
   const title = payload.notification?.title || 'RellikRentals';
   const options = {
     body: payload.notification?.body || '',
-    icon: '/RellikRentals/icon-192.png',
-    badge: '/RellikRentals/icon-192.png',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag: payload.data?.tag || 'rellikrentals',
     data: payload.data || {},
     vibrate: [200, 100, 200],
@@ -81,16 +81,4 @@ self.addEventListener('activate', function(event) {
     })
   );
   self.clients.claim();
-});
-
-self.addEventListener('fetch', function(event) {
-  // Only cache GET requests for our own assets
-  if (event.request.method !== 'GET') return;
-  if (!event.request.url.includes('rellikrentals.github.io')) return;
-
-  event.respondWith(
-    fetch(event.request).catch(function() {
-      return caches.match(event.request);
-    })
-  );
 });

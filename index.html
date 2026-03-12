@@ -133,7 +133,8 @@ var S = {
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
-  tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties',
+  tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
+  payrollShifts:[],
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
   scanning:false, scanError:'',
@@ -157,6 +158,7 @@ function subscribeLandlord(uid){
   subscribeBulletin();
   subscribeTodos(uid);
   subscribeMileage(uid);
+  subscribePayroll(uid);
   carryOverLockedUtils(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
@@ -254,6 +256,21 @@ function carryOverLockedUtils(uid){
 }
 function saveProp(p){return fsSet('users/'+S.user.uid+'/properties/'+p.id,p);}
 function delProp(id){return fsDel('users/'+S.user.uid+'/properties/'+id);}
+
+function saveShift(s){return fsSet('users/'+S.user.uid+'/payroll/'+s.id,s);}
+function delShift(id){return fsDel('users/'+S.user.uid+'/payroll/'+id);}
+function toggleShiftPaid(id){
+  var s=S.payrollShifts.find(function(x){return x.id===id;});
+  if(!s)return;
+  saveShift(Object.assign({},s,{paid:!s.paid}));
+}
+function subscribePayroll(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/payroll')),function(s){
+    S.payrollShifts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+}
 
 function saveRequest(r){return fsSet('maintenanceRequests/'+r.id,r);}
 function updateRequestStatus(id,status){
@@ -795,11 +812,32 @@ function renderSheet(){
     }
   }
 
+  else if(S.sheet==='addShift'){
+    var d=S.sheetData;
+    // Build worker list — tenants with canMaintenance or canPropertyManager
+    var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
+    title='⏱️ Log Hours';
+    var workerSel=workers.length>0
+      ?'<select onchange="S.sheetData.workerId=this.value;S.sheetData.workerName=S.tenants.find(function(t){return t.id===this.value;})?S.tenants.find(function(t){return t.id===this.value;}).name:\'\';renderSheet()"><option value="">— Select worker —</option>'+workers.map(function(w){return '<option value="'+w.id+'"'+(d.workerId===w.id?' selected':'')+'>'+esc(w.name)+'</option>';}).join('')+'</select>'
+      :'<div style="font-size:13px;color:#7c7a90;padding:12px;background:#22202f;border-radius:12px">No workers assigned yet. Give a tenant Maintenance or Manager access first.</div>';
+    body='<div class="frow"><div><label>Worker</label>'+workerSel+'</div>'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+inp('Notes (optional)','text',d.notes||'','notes','What was done?')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetAddShift()">Log Hours</button></div>';
+  }
+
   el.innerHTML='<div class="sheet-bg" onclick="closeSheet()"></div><div class="sheet-box"><div class="sheet-handle"></div>'+(title?'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+title+'</div>':'')+body+footer+'</div>';
   document.body.appendChild(el);
 }
 
 function doSheetAddTenant(){if(!S.sheetData.name||!S.sheetData.unit){alert('Name and unit required');return;}var d=S.sheetData;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});saveTenant(t);}
+function doSheetAddShift(){
+  var d=S.sheetData;
+  if(!d.workerId){alert('Please select a worker');return;}
+  if(!d.hours||isNaN(Number(d.hours))||Number(d.hours)<=0){alert('Please enter valid hours');return;}
+  if(!d.date){alert('Please enter a date');return;}
+  var worker=S.tenants.find(function(t){return t.id===d.workerId;});
+  closeSheet();
+  saveShift({id:mkid(),workerId:d.workerId,workerName:worker?worker.name:'',hourlyRate:Number(worker&&worker.hourlyRate)||0,hours:Number(d.hours),date:d.date,notes:d.notes||'',paid:false,createdAt:new Date().toISOString()});
+}
 function doSheetEditTenant(){var d=S.sheetData;closeSheet();saveTenant(Object.assign({},d,{rent:Number(d.rent)||0}));}
 function doSheetAddProp(){if(!S.sheetData.name){alert('Property name required');return;}var d=S.sheetData;closeSheet();saveProp(Object.assign({},d,{id:mkid()}));}
 function doSheetEditProp(){var d=S.sheetData;closeSheet();saveProp(d);}
@@ -1120,11 +1158,13 @@ function _doRender(){
 
   var nav='<nav class="bottom-nav">'
     +'<div class="nav-row">'
-    +[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'payments',l:'Payments',i:ICO.dollar},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'}]
+    +[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'payments',l:'Payments',i:ICO.dollar},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'},{id:'payroll',l:'Payroll',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='maintenance'?badge(newRequestCount):'';
       var bl=tb.id==='maintenance'?badgeLeft(doneTodoBadge):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+bl+'<span>'+tb.l+'</span></button>';
+      var unpaidShifts=S.payrollShifts.filter(function(s){return !s.paid;}).length;
+      var pb=tb.id==='payroll'?badge(unpaidShifts,'#f97316'):'';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+bl+pb+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div><div class="nav-row">'
     +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Expenses',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
@@ -1239,6 +1279,7 @@ function _doRender(){
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🔧 Maintenance Access</span><div onclick="toggleMaintenanceAccess(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canMaintenance?'#f97316':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canMaintenance?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">🏢 Property Manager</span><div onclick="togglePropertyManagerAccess(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.canPropertyManager?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.canPropertyManager?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
         +'<div class="card-row"><span style="font-size:14px;color:#7c7a90">📧 Email Receipts</span><div onclick="toggleEmailReceipts(\''+t.id+'\')" style="width:48px;height:26px;border-radius:99px;background:'+(t.emailReceipts===false?'#2e2c3d':'#4ade80')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(t.emailReceipts===false?'3px':'23px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+        +((t.canMaintenance||t.canPropertyManager)?'<div class="card-row"><span style="font-size:14px;color:#7c7a90">💰 Hourly Rate</span><div style="display:flex;align-items:center;gap:6px"><span style="color:#7c7a90">$</span><input type="number" placeholder="0.00" value="'+esc(t.hourlyRate||'')+'" oninput="var t=S.tenants.find(function(x){return x.id===\''+t.id+'\';});if(t){t.hourlyRate=Number(this.value);saveTenant(t);}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:6px 10px;color:#f0eef8;font-size:14px;font-weight:700;width:90px;font-family:Nunito,sans-serif;outline:none"/><span style="font-size:12px;color:#7c7a90">/hr</span></div></div>':'')
         +'</div>'
         +'<button class="btn btn-primary" onclick="togglePaid(\''+t.id+'\')">'+( t.paid?'Mark as Unpaid':'✓ Mark as Paid')+'</button>'
         +'<button class="btn btn-secondary" onclick="openSheet(\'editTenant\',JSON.parse(JSON.stringify(S.tenants.find(function(x){return x.id===\''+t.id+'\';}) || {})))">✏️ Edit Tenant Info</button>'
@@ -1432,6 +1473,62 @@ function _doRender(){
       +[].concat(filteredReceipts).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,S.showAllReceipts?9999:3).map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')
       +(filteredReceipts.length>3?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllReceipts=!S.showAllReceipts;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllReceipts?'Show Less':'View All '+filteredReceipts.length+' receipts')+'</button></div>':'')
       +(filteredReceipts.length===0&&!S.scanning?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">'+(S.receiptTypeFilter==='all'?'No receipts yet':'No '+S.receiptTypeFilter+' receipts yet')+'</div>':'')
+      +'</div>';
+  }
+
+  else if(S.tab==='payroll'){
+    var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
+    var allShifts=S.payrollShifts;
+    // Group by worker
+    var workerIds=[];
+    workers.forEach(function(w){if(workerIds.indexOf(w.id)<0)workerIds.push(w.id);});
+    // Summary totals
+    var totalUnpaidAmt=allShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+    var totalUnpaidHrs=allShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0);},0);
+
+    c='<div class="top-bar"><div class="page-title">Payroll</div><button onclick="openSheet(\'addShift\',{date:new Date().toISOString().slice(0,10)})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:Nunito,sans-serif">'+ICO.plus+' Log Hours</button></div>'
+      +'<div style="padding:0 16px">'
+      +(workers.length===0
+        ?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:40px;margin-bottom:10px">👷</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No workers yet</div><div style="font-size:13px">Give a tenant Maintenance or Manager access,<br>then set their hourly rate on their profile.</div></div>'
+        // Summary hero
+        :'<div class="card" style="background:linear-gradient(135deg,#1e1b2e,#2a2640);border:1px solid #f9741633;margin-bottom:4px">'
+        +'<div style="font-size:12px;color:#f97316;font-weight:700;margin-bottom:8px">OUTSTANDING BALANCE</div>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+        +'<div><div style="font-size:11px;color:#7c7a90">Unpaid Hours</div><div style="font-size:24px;font-weight:800;color:#fbbf24">'+totalUnpaidHrs.toFixed(1)+'h</div></div>'
+        +'<div><div style="font-size:11px;color:#7c7a90">Amount Owed</div><div style="font-size:24px;font-weight:800;color:#f97316">'+fmt(totalUnpaidAmt)+'</div></div>'
+        +'</div></div>'
+        // Per worker sections
+        +workers.map(function(w){
+          var wShifts=allShifts.filter(function(s){return s.workerId===w.id;});
+          var wUnpaid=wShifts.filter(function(s){return !s.paid;});
+          var wUnpaidHrs=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0);},0);
+          var wUnpaidAmt=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+          var wColor=w.canPropertyManager?'#8b5cf6':'#f97316';
+          return '<div class="card" style="margin-bottom:8px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<div style="display:flex;align-items:center;gap:10px">'
+            +'<div style="width:36px;height:36px;border-radius:50%;background:'+wColor+'33;border:2px solid '+wColor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:'+wColor+'">'+((w.name||'?').split(' ').map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2)||'?')+'</div>'
+            +'<div><div style="font-size:15px;font-weight:800">'+esc(w.name)+'</div>'
+            +'<div style="font-size:11px;color:#7c7a90">'+(w.hourlyRate?'$'+w.hourlyRate+'/hr':'No rate set')+(wUnpaid.length>0?' · <span style="color:#f97316;font-weight:700">'+wUnpaid.length+' unpaid</span>':'')+'</div></div>'
+            +'</div>'
+            +(wUnpaidAmt>0?'<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:#f97316">'+fmt(wUnpaidAmt)+'</div><div style="font-size:10px;color:#7c7a90">owed</div></div>':'')
+            +'</div>'
+            +(wShifts.length===0
+              ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
+              :wShifts.map(function(s){
+                var shiftAmt=(Number(s.hours)||0)*(Number(s.hourlyRate)||0);
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
+                  +'<div onclick="toggleShiftPaid(\''+s.id+'\')" style="width:18px;height:18px;border-radius:5px;border:2px solid '+(s.paid?'#4ade80':'#2e2c3d')+';background:'+(s.paid?'#4ade80':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-right:10px">'+(s.paid?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+                  +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
+                  +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
+                  +'<div style="text-align:right;display:flex;align-items:center;gap:10px">'
+                  +'<div><div style="font-size:13px;font-weight:700;color:'+(s.paid?'#4ade80':'#fbbf24')+'">'+(s.paid?'✓ Paid':'Unpaid')+'</div>'
+                  +'<div style="font-size:12px;color:#7c7a90">'+s.hours+'h'+(shiftAmt>0?' · '+fmt(shiftAmt):'')+'</div></div>'
+                  +'<button onclick="if(confirm(\'Remove this shift?\'))delShift(\''+s.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 8px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
+                  +'</div></div>';
+              }).join(''))
+            +'</div>';
+        }).join(''))
       +'</div>';
   }
 

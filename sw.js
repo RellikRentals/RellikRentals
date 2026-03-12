@@ -40,12 +40,12 @@ self.addEventListener('notificationclick', function(event) {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
-        if (client.url.includes('RellikRentals') && 'focus' in client) {
+        if (client.url.includes('rellik.ca') && 'focus' in client) {
           return client.focus();
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('https://rellikrentals.github.io/RellikRentals/');
+        return clients.openWindow('https://www.rellik.ca/');
       }
     })
   );
@@ -54,9 +54,9 @@ self.addEventListener('notificationclick', function(event) {
 // Cache static assets for offline use
 var CACHE_NAME = 'rellikrentals-v4.1';
 var urlsToCache = [
-  '/RellikRentals/',
-  '/RellikRentals/index.html',
-  '/RellikRentals/manifest.json'
+  '/',
+  '/index.html',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', function(event) {

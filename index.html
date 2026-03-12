@@ -134,7 +134,7 @@ var S = {
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
-  payrollShifts:[],
+  payrollShifts:[], payrollBudgets:{},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
   scanning:false, scanError:'',
@@ -159,7 +159,9 @@ function subscribeLandlord(uid){
   subscribeTodos(uid);
   subscribeMileage(uid);
   subscribePayroll(uid);
+  subscribeBudgets(uid);
   carryOverLockedUtils(uid);
+  checkAndCreditBudgets(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
   var curYr=new Date().getFullYear();
   MONTHS.forEach(function(m,i){
@@ -294,12 +296,57 @@ function subscribeWorkerShifts(tp){
   }));
 }
 
+function subscribeBudgets(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/payrollBudgets')),function(s){
+    var b={};
+    s.docs.forEach(function(d){b[d.id]=Object.assign({},d.data(),{id:d.id});});
+    S.payrollBudgets=b;
+    render();
+  }));
+}
+function saveBudgetConfig(workerId,config){
+  return fsSet('users/'+S.user.uid+'/payrollBudgets/'+workerId,config);
+}
+function checkAndCreditBudgets(uid){
+  // On login — check each worker with auto-reload enabled, credit if needed
+  var f=fb();
+  var today=new Date();
+  var curKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  f.getDocs(f.query(f.collection(f.db,'users/'+uid+'/payrollBudgets'))).then(function(snap){
+    snap.docs.forEach(function(d){
+      var cfg=Object.assign({},d.data(),{id:d.id});
+      if(!cfg.autoReload)return;
+      if(cfg.lastCredited===curKey)return; // Already credited this period
+      var creditDay=Number(cfg.creditDay)||1;
+      if(today.getDate()<creditDay)return; // Not time yet
+      // Credit the budget
+      var newBalance=(Number(cfg.balance)||0)+(Number(cfg.amount)||500);
+      fsSet('users/'+uid+'/payrollBudgets/'+cfg.id,Object.assign({},cfg,{balance:newBalance,lastCredited:curKey}));
+    });
+  });
+}
+function deductFromBudget(workerId,amount){
+  var cfg=S.payrollBudgets[workerId];
+  if(!cfg)return; // No budget configured — skip silently
+  var newBalance=(Number(cfg.balance)||0)-amount;
+  fsSet('users/'+S.user.uid+'/payrollBudgets/'+workerId,Object.assign({},cfg,{balance:newBalance}));
+}
+
 function saveShift(s){return fsSet('users/'+S.user.uid+'/payroll/'+s.id,s);}
 function delShift(id){return fsDel('users/'+S.user.uid+'/payroll/'+id);}
 function toggleShiftPaid(id){
   var s=S.payrollShifts.find(function(x){return x.id===id;});
   if(!s)return;
-  saveShift(Object.assign({},s,{paid:!s.paid}));
+  var nowPaid=!s.paid;
+  var shiftAmt=(Number(s.hours)||0)*(Number(s.hourlyRate)||0);
+  saveShift(Object.assign({},s,{paid:nowPaid}));
+  if(nowPaid&&shiftAmt>0){
+    deductFromBudget(s.workerId,shiftAmt);
+  } else if(!nowPaid&&shiftAmt>0){
+    // Undo — add back to budget
+    deductFromBudget(s.workerId,-shiftAmt);
+  }
 }
 function subscribePayroll(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
@@ -881,7 +928,8 @@ function doSheetAddShift(){
   if(!d.date){alert('Please enter a date');return;}
   var worker=S.tenants.find(function(t){return t.id===d.workerId;});
   closeSheet();
-  saveShift({id:mkid(),workerId:d.workerId,workerName:worker?worker.name:'',hourlyRate:Number(worker&&worker.hourlyRate)||0,hours:Number(d.hours),date:d.date,notes:d.notes||'',paid:false,createdAt:new Date().toISOString()});
+  var wid=worker&&worker.email?pid(worker.email):d.workerId;
+  saveShift({id:mkid(),workerId:wid,workerName:worker?worker.name:'',hourlyRate:Number(worker&&worker.hourlyRate)||0,hours:Number(d.hours),date:d.date,notes:d.notes||'',paid:false,createdAt:new Date().toISOString()});
 }
 function doSheetEditTenant(){var d=S.sheetData;closeSheet();saveTenant(Object.assign({},d,{rent:Number(d.rent)||0}));}
 function doSheetAddProp(){if(!S.sheetData.name){alert('Property name required');return;}var d=S.sheetData;closeSheet();saveProp(Object.assign({},d,{id:mkid()}));}
@@ -1499,6 +1547,36 @@ function _doRender(){
       +'<div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#fbbf24">'+paidCount+'/'+tenantCount+'</div><div style="font-size:11px;color:#7c7a90">Paid</div></div>'
       +'</div>'
       +'</div>'
+      // Maintenance Budget section
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">MAINTENANCE BUDGET</div>'
+      +(function(){
+        var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
+        if(workers.length===0) return '<div class="card"><div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px">No maintenance workers assigned yet</div></div>';
+        return workers.map(function(w){
+          var wid=w.email?pid(w.email):w.id;
+          var cfg=S.payrollBudgets[wid]||{autoReload:false,amount:500,creditDay:1,balance:0};
+          var wColor=w.canPropertyManager?'#8b5cf6':'#f97316';
+          return '<div class="card" style="margin-bottom:8px;padding:14px 16px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<div style="display:flex;align-items:center;gap:8px">'
+            +'<div style="width:28px;height:28px;border-radius:50%;background:'+wColor+'33;border:2px solid '+wColor+';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:'+wColor+'">'+((w.name||'?').split(' ').map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2))+'</div>'
+            +'<div style="font-size:14px;font-weight:700">'+esc(w.name)+'</div>'
+            +'</div>'
+            +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#7c7a90">Auto-reload</span><div onclick="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{autoReload:false,amount:500,creditDay:1,balance:0};saveBudgetConfig(wid,Object.assign({},cfg,{autoReload:!cfg.autoReload}))" style="width:40px;height:22px;border-radius:99px;background:'+(cfg.autoReload?'#4ade80':'#2e2c3d')+';position:relative;cursor:pointer;flex-shrink:0"><div style="position:absolute;top:2px;left:'+(cfg.autoReload?'20px':'2px')+';width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+            +'</div>'
+            +(cfg.autoReload
+              ?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+              +'<div><label>Monthly Amount ($)</label><input type="number" value="'+(cfg.amount||500)+'" oninput="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{};saveBudgetConfig(wid,Object.assign({},cfg,{amount:Number(this.value)||500}))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:14px;font-weight:700;width:100%;font-family:Nunito,sans-serif;outline:none"/></div>'
+              +'<div><label>Credit on Day</label><input type="number" min="1" max="28" value="'+(cfg.creditDay||1)+'" oninput="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{};saveBudgetConfig(wid,Object.assign({},cfg,{creditDay:Number(this.value)||1}))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:14px;font-weight:700;width:100%;font-family:Nunito,sans-serif;outline:none"/></div>'
+              +'</div>'
+              +'<div style="display:flex;justify-content:space-between;align-items:center">'
+              +'<span style="font-size:13px;color:#7c7a90">Current Balance</span>'
+              +'<span style="font-size:16px;font-weight:800;color:'+(Number(cfg.balance||0)>=0?'#4ade80':'#f87171')+'">'+fmt(cfg.balance||0)+'</span>'
+              +'</div>'
+              :'<div style="font-size:12px;color:#7c7a90">Auto-reload off — budget tracks payouts only</div>')
+            +'</div>';
+        }).join('');
+      })()
       // Notifications section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">NOTIFICATIONS</div>'
       +'<div class="card" style="padding:0">'
@@ -1587,11 +1665,14 @@ function _doRender(){
         +'</div></div>'
         // Per worker sections
         +workers.map(function(w){
-          var wShifts=allShifts.filter(function(s){return s.workerId===w.id;});
+          var wid=w.email?pid(w.email):w.id;
+          var wShifts=allShifts.filter(function(s){return s.workerId===wid;});
           var wUnpaid=wShifts.filter(function(s){return !s.paid;});
           var wUnpaidHrs=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0);},0);
           var wUnpaidAmt=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
           var wColor=w.canPropertyManager?'#8b5cf6':'#f97316';
+          var wBudget=S.payrollBudgets[wid];
+          var wBalance=wBudget?Number(wBudget.balance)||0:null;
           return '<div class="card" style="margin-bottom:8px">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
             +'<div style="display:flex;align-items:center;gap:10px">'
@@ -1599,7 +1680,10 @@ function _doRender(){
             +'<div><div style="font-size:15px;font-weight:800">'+esc(w.name)+'</div>'
             +'<div style="font-size:11px;color:#7c7a90">'+(w.hourlyRate?'$'+w.hourlyRate+'/hr':'No rate set')+(wUnpaid.length>0?' · <span style="color:#f97316;font-weight:700">'+wUnpaid.length+' unpaid</span>':'')+'</div></div>'
             +'</div>'
-            +(wUnpaidAmt>0?'<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:#f97316">'+fmt(wUnpaidAmt)+'</div><div style="font-size:10px;color:#7c7a90">owed</div></div>':'')
+            +'<div style="text-align:right">'
+            +(wBalance!==null?'<div style="font-size:11px;color:#7c7a90;margin-bottom:2px">Budget</div><div style="font-size:18px;font-weight:800;color:'+(wBalance>=0?'#4ade80':'#f87171')+'">'+fmt(wBalance)+'</div>':'')
+            +(wUnpaidAmt>0?'<div style="font-size:11px;color:#f97316;font-weight:700;margin-top:2px">'+fmt(wUnpaidAmt)+' owed</div>':'')
+            +'</div>'
             +'</div>'
             +(wShifts.length===0
               ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'

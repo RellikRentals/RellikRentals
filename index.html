@@ -1478,11 +1478,10 @@ function initApp(){
 
 function initNotifications(){
   if(!('serviceWorker' in navigator)||!('Notification' in window))return;
-  navigator.serviceWorker.register('sw.js').then(function(reg){
+  navigator.serviceWorker.register('/sw.js').then(function(reg){
     var f=fb();
     var messaging=f.fcmMessaging;
     _messaging=messaging;
-    // Handle foreground messages
     f.onMessage(messaging,function(payload){
       var title=payload.notification?.title||'RellikRentals';
       var body=payload.notification?.body||'';
@@ -1490,13 +1489,23 @@ function initNotifications(){
         new Notification(title,{body:body});
       }
     });
-    // Request permission and get token
-    if(Notification.permission==='default'){
-      Notification.requestPermission().then(function(perm){
-        if(perm==='granted') getFCMToken(reg,messaging);
+    // Wait for service worker to be active
+    var sw=reg.installing||reg.waiting||reg.active;
+    var doToken=function(){
+      if(Notification.permission==='default'){
+        Notification.requestPermission().then(function(perm){
+          if(perm==='granted') getFCMToken(reg,messaging);
+        });
+      } else if(Notification.permission==='granted'){
+        getFCMToken(reg,messaging);
+      }
+    };
+    if(reg.active){
+      doToken();
+    } else {
+      sw.addEventListener('statechange',function(e){
+        if(e.target.state==='activated') doToken();
       });
-    } else if(Notification.permission==='granted'){
-      getFCMToken(reg,messaging);
     }
   }).catch(function(e){console.log('SW registration failed:',e);});
 }

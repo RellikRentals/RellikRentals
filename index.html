@@ -196,9 +196,11 @@ function subscribeTenantPortal(email){
       S.tenantProfile=Object.assign({},m.data(),{id:m.id});
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid){
         subscribeTodos(S.tenantProfile.landlordUid);
+        subscribeWorkerShifts(S.tenantProfile);
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid){
         subscribeManagerData(S.tenantProfile.landlordUid);
+        subscribeWorkerShifts(S.tenantProfile);
       }
     }
     render();
@@ -256,6 +258,41 @@ function carryOverLockedUtils(uid){
 }
 function saveProp(p){return fsSet('users/'+S.user.uid+'/properties/'+p.id,p);}
 function delProp(id){return fsDel('users/'+S.user.uid+'/properties/'+id);}
+
+function saveWorkerShift(tp){
+  // Called from worker side — saves to landlord's payroll collection
+  var d=S.sheetData;
+  if(!d.hours||isNaN(Number(d.hours))||Number(d.hours)<=0){alert('Please enter valid hours');return;}
+  if(!d.date){alert('Please enter a date');return;}
+  if(!tp||!tp.landlordUid){alert('Could not find landlord info');return;}
+  closeSheet();
+  var f=fb();
+  var shiftId=mkid();
+  f.setDoc(f.doc(f.db,'users/'+tp.landlordUid+'/payroll/'+shiftId),{
+    id:shiftId,
+    workerId:pid(tp.email),
+    workerName:tp.name||S.user.email,
+    hourlyRate:Number(tp.hourlyRate)||0,
+    hours:Number(d.hours),
+    date:d.date,
+    notes:d.notes||'',
+    paid:false,
+    createdAt:new Date().toISOString()
+  }).catch(function(e){alert('Could not save shift: '+e.message);});
+}
+
+function subscribeWorkerShifts(tp){
+  // Worker subscribes to their own shifts in landlord's payroll
+  if(!tp||!tp.landlordUid)return;
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  var myId=pid(tp.email);
+  _unsubs.push(snap(q(col(db,'users/'+tp.landlordUid+'/payroll')),function(s){
+    S.payrollShifts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});})
+      .filter(function(s){return s.workerId===myId;})
+      .sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+}
 
 function saveShift(s){return fsSet('users/'+S.user.uid+'/payroll/'+s.id,s);}
 function delShift(id){return fsDel('users/'+S.user.uid+'/payroll/'+id);}
@@ -812,6 +849,14 @@ function renderSheet(){
     }
   }
 
+  else if(S.sheet==='addWorkerShift'){
+    var tp=S.tenantProfile;
+    var d=S.sheetData;
+    title='⏱️ Log My Hours';
+    body='<div class="frow">'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+inp('Notes (optional)','text',d.notes||'','notes','What did you work on?')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="saveWorkerShift(S.tenantProfile)">Submit Hours</button></div>';
+  }
+
   else if(S.sheet==='addShift'){
     var d=S.sheetData;
     // Build worker list — tenants with canMaintenance or canPropertyManager
@@ -1086,6 +1131,27 @@ function _doRender(){
               +'</div>';
           }).join(''))
         +'</div>'
+        // Hours Worked (manager's own shifts)
+        +(function(){
+          var myShifts=S.payrollShifts||[];
+          var unpaidHrs=myShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0);},0);
+          return '<div class="card" style="margin-bottom:8px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<div style="font-size:13px;font-weight:700">⏱️ My Hours'+(unpaidHrs>0?' <span style="font-size:11px;color:#f97316;font-weight:700">'+unpaidHrs.toFixed(1)+'h unpaid</span>':'')+'</div>'
+            +'<button onclick="openSheet(\'addWorkerShift\',{date:new Date().toISOString().slice(0,10)})" style="background:#f9741622;border:1px solid #f9741644;border-radius:10px;padding:5px 12px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Log Hours</button>'
+            +'</div>'
+            +(myShifts.length===0
+              ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
+              :myShifts.map(function(s){
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
+                  +'<div><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
+                  +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
+                  +'<div style="text-align:right"><div style="font-size:13px;font-weight:700;color:'+(s.paid?'#4ade80':'#fbbf24')+'">'+(s.paid?'✓ Paid':'Unpaid')+'</div>'
+                  +'<div style="font-size:12px;color:#7c7a90">'+s.hours+'h</div></div>'
+                  +'</div>';
+              }).join(''))
+            +'</div>';
+        })()
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+pmh+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
@@ -1120,6 +1186,28 @@ function _doRender(){
               +'<button onclick="if(confirm(\'Remove this request?\'))fsDel(\'maintenanceRequests/\'+\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:4px 8px;cursor:pointer;color:#f87171;font-size:11px;font-family:Nunito,sans-serif">Remove</button>'
               +'</div></div></div>';
           }).join(''))
+        +'</div>'
+        // Hours Worked
+        +(function(){
+          var myShifts=S.payrollShifts||[];
+          var unpaidHrs=myShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0);},0);
+          return '<div class="card" style="margin-bottom:8px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<div style="font-size:13px;font-weight:700">⏱️ Hours Worked'+(unpaidHrs>0?' <span style="font-size:11px;color:#f97316;font-weight:700">'+unpaidHrs.toFixed(1)+'h unpaid</span>':'')+'</div>'
+            +'<button onclick="openSheet(\'addWorkerShift\',{date:new Date().toISOString().slice(0,10)})" style="background:#f9741622;border:1px solid #f9741644;border-radius:10px;padding:5px 12px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Log Hours</button>'
+            +'</div>'
+            +(myShifts.length===0
+              ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
+              :myShifts.map(function(s){
+                return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
+                  +'<div><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
+                  +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
+                  +'<div style="text-align:right"><div style="font-size:13px;font-weight:700;color:'+(s.paid?'#4ade80':'#fbbf24')+'">'+(s.paid?'✓ Paid':'Unpaid')+'</div>'
+                  +'<div style="font-size:12px;color:#7c7a90">'+s.hours+'h</div></div>'
+                  +'</div>';
+              }).join(''))
+            +'</div>';
+        })()
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+mph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;

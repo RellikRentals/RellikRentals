@@ -134,7 +134,7 @@ var S = {
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
-  payrollShifts:[], payrollBudgets:{},
+  payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
   scanning:false, scanError:'',
@@ -1552,7 +1552,9 @@ function _doRender(){
       +(function(){
         var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
         if(workers.length===0) return '<div class="card"><div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px">No maintenance workers assigned yet</div></div>';
-        return workers.map(function(w){
+        var showAll=S.showAllBudgetWorkers;
+        var visible=showAll?workers:workers.slice(0,1);
+        return visible.map(function(w){
           var wid=w.email?pid(w.email):w.id;
           var cfg=S.payrollBudgets[wid]||{autoReload:false,amount:500,creditDay:1,balance:0};
           var wColor=w.canPropertyManager?'#8b5cf6':'#f97316';
@@ -1565,17 +1567,25 @@ function _doRender(){
             +'<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#7c7a90">Auto-reload</span><div onclick="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{autoReload:false,amount:500,creditDay:1,balance:0};saveBudgetConfig(wid,Object.assign({},cfg,{autoReload:!cfg.autoReload}))" style="width:40px;height:22px;border-radius:99px;background:'+(cfg.autoReload?'#4ade80':'#2e2c3d')+';position:relative;cursor:pointer;flex-shrink:0"><div style="position:absolute;top:2px;left:'+(cfg.autoReload?'20px':'2px')+';width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
             +'</div>'
             +(cfg.autoReload
-              ?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+              ?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
               +'<div><label>Monthly Amount ($)</label><input type="number" value="'+(cfg.amount||500)+'" oninput="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{};saveBudgetConfig(wid,Object.assign({},cfg,{amount:Number(this.value)||500}))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:14px;font-weight:700;width:100%;font-family:Nunito,sans-serif;outline:none"/></div>'
               +'<div><label>Credit on Day</label><input type="number" min="1" max="28" value="'+(cfg.creditDay||1)+'" oninput="var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{};saveBudgetConfig(wid,Object.assign({},cfg,{creditDay:Number(this.value)||1}))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:14px;font-weight:700;width:100%;font-family:Nunito,sans-serif;outline:none"/></div>'
               +'</div>'
-              +'<div style="display:flex;justify-content:space-between;align-items:center">'
-              +'<span style="font-size:13px;color:#7c7a90">Current Balance</span>'
-              +'<span style="font-size:16px;font-weight:800;color:'+(Number(cfg.balance||0)>=0?'#4ade80':'#f87171')+'">'+fmt(cfg.balance||0)+'</span>'
-              +'</div>'
-              :'<div style="font-size:12px;color:#7c7a90">Auto-reload off — budget tracks payouts only</div>')
+              :'')
+            // Current balance + add funds
+            +'<div style="background:#22202f;border-radius:12px;padding:12px 14px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+            +'<span style="font-size:13px;color:#7c7a90">Current Balance</span>'
+            +'<span style="font-size:18px;font-weight:800;color:'+(Number(cfg.balance||0)>=0?'#4ade80':'#f87171')+'">'+fmt(cfg.balance||0)+'</span>'
+            +'</div>'
+            +'<div style="display:flex;gap:8px;align-items:center">'
+            +'<input type="number" id="addFunds_'+wid+'" placeholder="Amount to add" style="background:#1a1927;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:14px;font-weight:700;flex:1;font-family:Nunito,sans-serif;outline:none"/>'
+            +'<button onclick="var el=document.getElementById(\'addFunds_'+wid+'\');var amt=Number(el.value);if(!amt||amt<=0){alert(\'Enter a valid amount\');return;}var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{balance:0};saveBudgetConfig(wid,Object.assign({},cfg,{balance:(Number(cfg.balance)||0)+amt}));el.value=\'\';" style="background:#4ade8022;border:1px solid #4ade8044;border-radius:10px;padding:8px 14px;color:#4ade80;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button>'
+            +'</div>'
+            +'</div>'
             +'</div>';
-        }).join('');
+        }).join('')
+        +(workers.length>1?'<div style="text-align:center;margin-bottom:4px"><button onclick="S.showAllBudgetWorkers=!S.showAllBudgetWorkers;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(showAll?'Show Less':'View All '+workers.length+' Workers')+'</button></div>':'');
       })()
       // Notifications section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">NOTIFICATIONS</div>'

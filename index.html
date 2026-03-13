@@ -1776,7 +1776,9 @@ function _doRender(){
   }
 
   else if(S.tab==='receipts'){
+    var viewedMonthPrefix=S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0');
     var filteredReceipts=S.receipts.filter(function(r){
+      if(!(r.date||'').startsWith(viewedMonthPrefix)) return false;
       if(S.receiptTypeFilter==='capital') return r.expType==='capital';
       if(S.receiptTypeFilter==='operating') return (r.expType||'operating')==='operating';
       return true;

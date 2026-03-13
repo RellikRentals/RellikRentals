@@ -1472,7 +1472,7 @@ function _doRender(){
     var collectedF=filteredTenants.filter(function(t){return t.paid;}).reduce(function(a,t){return a+Number(t.rent);},0);
     var outstandingF=totalRentF-collectedF;
     var paidCountF=filteredTenants.filter(function(t){return t.paid;}).length;
-    var totalExpF=S.receipts.filter(function(r){return S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all';}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
+    var totalExpF=S.receipts.filter(function(r){return (r.date||'').startsWith(viewedMonthPrefix)&&(S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all');}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var ytdExpenses=S.receipts.filter(function(r){return ((r.date||'').startsWith(String(curYear)))&&(S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all');}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var totalUtilF=filteredUtils.reduce(function(a,u){return a+(Number(u.amount)||0);},0);
     var netIncomeF=collectedF-totalExpF-totalUtilF;
@@ -1521,7 +1521,7 @@ function _doRender(){
       +'</div>'
       +'</div></div>'
       +'<div class="grid-2" style="margin-bottom:12px">'
-      +[['Collected',fmtS(collectedF),'#4ade80',paidCountF+'/'+filteredTenants.length+' tenants'],['Outstanding',fmtS(outstandingF),'#fbbf24',(filteredTenants.length-paidCountF)+' pending'],['Expenses',fmtS(totalExpF),'#f87171',S.receipts.length+' receipts'],['Utilities',fmtS(totalUtilF),'#fb923c',filteredUtils.length+' entries']]
+      +[['Collected',fmtS(collectedF),'#4ade80',paidCountF+'/'+filteredTenants.length+' tenants'],['Outstanding',fmtS(outstandingF),'#fbbf24',(filteredTenants.length-paidCountF)+' pending'],['Expenses',fmtS(totalExpF),'#f87171',filteredReceipts.length+' receipts'],['Utilities',fmtS(totalUtilF),'#fb923c',filteredUtils.length+' entries']]
       .map(function(s){return '<div class="card" style="margin-bottom:0;padding:14px 16px"><div style="font-size:11px;color:#7c7a90;font-weight:600;margin-bottom:6px">'+s[0].toUpperCase()+'</div><div style="font-size:20px;font-weight:800;color:'+s[2]+'">'+s[1]+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">'+s[3]+'</div></div>';}).join('')
       +'</div>'
       // Net income

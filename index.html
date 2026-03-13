@@ -166,7 +166,7 @@ function unsub(){_unsubs.forEach(function(u){u();});_unsubs=[];if(S._utilUnsub){
 function subscribeLandlord(uid){
   unsub();
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
-  _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){S.tenants=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){S.tenants=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});if(S._subscribeYTDReceipts){S.ytdRentReceipts=[];S._subscribeYTDReceipts();}render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){S.receipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   subscribeUtilities(uid);
@@ -188,12 +188,25 @@ function subscribeLandlord(uid){
       render();
     }));
   });
-  // Subscribe to all tenantReceipts for YTD rent using collectionGroup
+  // Subscribe to all tenantReceipts for YTD rent — query directly, not collectionGroup
   var f2=fb();
-  _unsubs.push(snap(f2.collectionGroup(f2.db,'receipts'),function(s){
-    S.ytdRentReceipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
-    render();
-  }));
+  var tRecs=[];
+  var tenantEmails=[];
+  // We'll re-subscribe when tenants load — for now subscribe to known tenants
+  function subscribeYTDReceipts(){
+    var emails=S.tenants.map(function(t){return t.email;}).filter(Boolean);
+    if(emails.length===0)return;
+    emails.forEach(function(email){
+      var p=pid(email);
+      _unsubs.push(snap(f2.query(f2.collection(f2.db,'tenantReceipts/'+p+'/receipts')),function(s){
+        var incoming=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+        // Merge into ytdRentReceipts by pid
+        S.ytdRentReceipts=S.ytdRentReceipts.filter(function(r){return r.tenantEmail!==email;}).concat(incoming);
+        render();
+      }));
+    });
+  }
+  S._subscribeYTDReceipts=subscribeYTDReceipts;
 }
 
 function subscribeUtilities(uid){

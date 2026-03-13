@@ -487,7 +487,19 @@ function subscribeTenantRequests(email){
   });
 }
 
-function syncTenantReceipt(t,month,year){
+function backfillRent(month,year){
+  var monthName=MONTHS[month]; var yr=String(year);
+  var paid=S.tenants.filter(function(t){return t.rent>0;});
+  if(paid.length===0){alert('No tenants found.');return;}
+  if(!confirm('Write rent receipts for '+paid.length+' tenants for '+monthName+' '+yr+'?\n\nThis will overwrite any existing receipts for that month.')){return;}
+  var promises=paid.map(function(t){return syncTenantReceiptMonth(t,monthName,yr);});
+  Promise.all(promises).then(function(){alert('✓ Backfilled '+paid.length+' receipts for '+monthName+' '+yr);closeSheet();});
+}
+function syncTenantReceiptMonth(t,month,year){
+  var key=t.email||('noemail_'+t.id);
+  var p=pid(key); var rid=year+'-'+month+'-'+t.id;
+  return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:year+'-'+String(MONTHS.indexOf(month)+1).padStart(2,'0')+'-01',status:'Paid'});
+}
   var key=t.email||('noemail_'+t.id);
   var p=pid(key); var rid=year+'-'+month+'-'+t.id;
   return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:new Date().toISOString().slice(0,10),status:'Paid'});
@@ -994,11 +1006,13 @@ function renderSheet(){
   else if(S.sheet==='monthPicker'){
     title='📅 Select Month';
     var years=[2024,2025,2026,2027,2028];
+    var isPast=(S.sheetData.year<new Date().getFullYear())||(S.sheetData.year===new Date().getFullYear()&&S.sheetData.month<new Date().getMonth());
     body='<div class="grid-2" style="margin-bottom:16px">'
-      +'<div><label>Month</label><select onchange="S.sheetData.month=parseInt(this.value)">'+MONTHS.map(function(m,i){return '<option value="'+i+'"'+(i===S.sheetData.month?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div>'
-      +'<div><label>Year</label><select onchange="S.sheetData.year=parseInt(this.value)">'+years.map(function(y){return '<option value="'+y+'"'+(y===S.sheetData.year?' selected':'')+'>'+y+'</option>';}).join('')+'</select></div>'
-      +'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="applyMonthPicker()">View Month</button></div>';
+      +'<div><label>Month</label><select onchange="S.sheetData.month=parseInt(this.value);var n=new Date();S.sheetData._isPast=(S.sheetData.year<n.getFullYear())||(S.sheetData.year===n.getFullYear()&&S.sheetData.month<n.getMonth());renderSheet()">'+MONTHS.map(function(m,i){return '<option value="'+i+'"'+(i===S.sheetData.month?' selected':'')+'>'+m+'</option>';}).join('')+'</select></div>'
+      +'<div><label>Year</label><select onchange="S.sheetData.year=parseInt(this.value);var n=new Date();S.sheetData._isPast=(S.sheetData.year<n.getFullYear())||(S.sheetData.year===n.getFullYear()&&S.sheetData.month<n.getMonth());renderSheet()">'+years.map(function(y){return '<option value="'+y+'"'+(y===S.sheetData.year?' selected':'')+'>'+y+'</option>';}).join('')+'</select></div>'
+      +'</div>'
+      +(isPast||S.sheetData._isPast?'<div style="background:#6366f122;border-radius:14px;padding:14px;margin-bottom:4px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">📥 Backfill Rent</div><div style="font-size:12px;color:#7c7a90">Writes rent receipts for all current paid tenants dated to this month. Use to fill in missing historical data.</div></div>':'');
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button>'+(isPast||S.sheetData._isPast?'<button class="btn" style="background:#6366f133;color:#6366f1;border:1px solid #6366f144" onclick="backfillRent(S.sheetData.month,S.sheetData.year)">📥 Backfill Rent</button>':'')+'<button class="btn btn-primary" onclick="applyMonthPicker()">View Month</button></div>';
   }
   else if(S.sheet==='doc'){
     var d=S.sheetData;

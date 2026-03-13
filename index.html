@@ -194,14 +194,13 @@ function subscribeLandlord(uid){
   var tenantEmails=[];
   // We'll re-subscribe when tenants load — for now subscribe to known tenants
   function subscribeYTDReceipts(){
-    var emails=S.tenants.map(function(t){return t.email;}).filter(Boolean);
-    if(emails.length===0)return;
-    emails.forEach(function(email){
-      var p=pid(email);
+    var keys=S.tenants.map(function(t){return t.email||('noemail_'+t.id);});
+    if(keys.length===0)return;
+    keys.forEach(function(key){
+      var p=pid(key);
       _unsubs.push(snap(f2.query(f2.collection(f2.db,'tenantReceipts/'+p+'/receipts')),function(s){
         var incoming=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
-        // Merge into ytdRentReceipts by pid
-        S.ytdRentReceipts=S.ytdRentReceipts.filter(function(r){return r.tenantEmail!==email;}).concat(incoming);
+        S.ytdRentReceipts=S.ytdRentReceipts.filter(function(r){return r.tenantEmail!==key;}).concat(incoming);
         render();
       }));
     });
@@ -489,9 +488,9 @@ function subscribeTenantRequests(email){
 }
 
 function syncTenantReceipt(t,month,year){
-  if(!t.email)return Promise.resolve();
-  var p=pid(t.email); var rid=year+'-'+month+'-'+t.id;
-  return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:t.email,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:new Date().toISOString().slice(0,10),status:'Paid'});
+  var key=t.email||('noemail_'+t.id);
+  var p=pid(key); var rid=year+'-'+month+'-'+t.id;
+  return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:new Date().toISOString().slice(0,10),status:'Paid'});
 }
 
 // ── Email ──────────────────────────────────────────────────────────

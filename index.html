@@ -1694,7 +1694,11 @@ function _doRender(){
     var workerIds=[];
     workers.forEach(function(w){if(workerIds.indexOf(w.id)<0)workerIds.push(w.id);});
     // Summary totals
-    var totalUnpaidAmt=allShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+    var totalUnpaidAmt=allShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){
+      var worker=workers.find(function(w){return (w.email?pid(w.email):w.id)===s.workerId;});
+      var rate=Number(s.hourlyRate)||(worker?Number(worker.hourlyRate)||0:0);
+      return a+(Number(s.hours)||0)*rate;
+    },0);
     var totalUnpaidHrs=allShifts.filter(function(s){return !s.paid;}).reduce(function(a,s){return a+(Number(s.hours)||0);},0);
 
     c='<div class="top-bar"><div class="page-title">Payroll</div><button onclick="openSheet(\'addShift\',{date:new Date().toISOString().slice(0,10)})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:Nunito,sans-serif">'+ICO.plus+' Log Hours</button></div>'
@@ -1711,19 +1715,26 @@ function _doRender(){
         // Per worker sections
         +workers.map(function(w){
           var wid=w.email?pid(w.email):w.id;
+          var wRate=Number(w.hourlyRate)||0;
           var wShifts=allShifts.filter(function(s){return s.workerId===wid;});
           var wUnpaid=wShifts.filter(function(s){return !s.paid;});
           var wUnpaidHrs=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0);},0);
-          var wUnpaidAmt=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+          var wUnpaidAmt=wUnpaid.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||wRate);},0);
           var wColor=w.canPropertyManager?'#8b5cf6':'#f97316';
           var wBudget=S.payrollBudgets[wid];
           var wBalance=wBudget?Number(wBudget.balance)||0:null;
+          var wRate=Number(w.hourlyRate)||0;
           return '<div class="card" style="margin-bottom:8px">'
             +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
             +'<div style="display:flex;align-items:center;gap:10px">'
             +'<div style="width:36px;height:36px;border-radius:50%;background:'+wColor+'33;border:2px solid '+wColor+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:'+wColor+'">'+((w.name||'?').split(' ').map(function(x){return x[0]||'';}).join('').toUpperCase().slice(0,2)||'?')+'</div>'
             +'<div><div style="font-size:15px;font-weight:800">'+esc(w.name)+'</div>'
-            +'<div style="font-size:11px;color:#7c7a90">'+(w.hourlyRate?'$'+w.hourlyRate+'/hr':'No rate set')+(wUnpaid.length>0?' · <span style="color:#f97316;font-weight:700">'+wUnpaid.length+' unpaid</span>':'')+'</div></div>'
+            +'<div style="display:flex;align-items:center;gap:4px;margin-top:2px">'
+            +'<span style="font-size:11px;color:#7c7a90">$</span>'
+            +'<input type="number" placeholder="0" value="'+(w.hourlyRate||'')+'" oninput="var tenant=S.tenants.find(function(x){return x.id===\''+w.id+'\';});if(tenant){tenant.hourlyRate=Number(this.value);saveTenant(tenant);}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:3px 6px;color:#f0eef8;font-size:12px;font-weight:700;width:52px;font-family:Nunito,sans-serif;outline:none"/>'
+            +'<span style="font-size:11px;color:#7c7a90">/hr</span>'
+            +(wUnpaid.length>0?' <span style="color:#f97316;font-weight:700;font-size:11px">· '+wUnpaid.length+' unpaid</span>':'')
+            +'</div></div>'
             +'</div>'
             +'<div style="text-align:right">'
             +(wBalance!==null?'<div style="font-size:11px;color:#7c7a90;margin-bottom:2px">Budget</div><div style="font-size:18px;font-weight:800;color:'+(wBalance>=0?'#4ade80':'#f87171')+'">'+fmt(wBalance)+'</div>':'')
@@ -1733,7 +1744,7 @@ function _doRender(){
             +(wShifts.length===0
               ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
               :wShifts.map(function(s){
-                var shiftAmt=(Number(s.hours)||0)*(Number(s.hourlyRate)||0);
+                var shiftAmt=(Number(s.hours)||0)*(Number(s.hourlyRate)||wRate);
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
                   +'<div onclick="toggleShiftPaid(\''+s.id+'\')" style="width:18px;height:18px;border-radius:5px;border:2px solid '+(s.paid?'#4ade80':'#2e2c3d')+';background:'+(s.paid?'#4ade80':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-right:10px">'+(s.paid?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
                   +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+s.date+'</div>'

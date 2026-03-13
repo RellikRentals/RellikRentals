@@ -94,6 +94,20 @@ var EJS_KEY = "wzVqsv-JCIH-EM3zs";
 var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supplies","Landscaping","Cleaning","Business Meals","Other"];
 
+function clickSound(){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator();
+    var g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.frequency.value=600;o.type='sine';
+    g.gain.setValueAtTime(0.15,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.08);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.08);
+    if(navigator.vibrate)navigator.vibrate(18);
+  }catch(e){}
+}
+
 function fmt(n){return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtS(n){return '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/[<]/g,'&lt;').replace(/[>]/g,'&gt;').replace(/["]/g,'&quot;');}
@@ -135,6 +149,8 @@ var S = {
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
+  dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3,
+  mgCollapsed:{todos:false,tenants:false,requests:false,expenses:false},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
   scanning:false, scanError:'',
@@ -835,16 +851,18 @@ function renderSheet(){
       +'</select></div>'
       +'<div><label>Description</label><input type="text" placeholder="Describe the issue..." value="'+esc(S.sheetData.description||'')+'" oninput="S.sheetData.description=this.value"/></div>'
       +'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSubmitRequest()">Submit</button></div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="clickSound();doSubmitRequest()">Submit</button></div>';
   }
   else if(S.sheet==='addPost'){
     title='New Post';
     body='<div class="frow">'+inp('Title','text',S.sheetData.title||'','title','e.g. Building maintenance this Saturday')+inp('Message','text',S.sheetData.message||'','message','Write your announcement here...')+'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doAddPost()">Post</button></div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="clickSound();doAddPost()">Post</button></div>';
   }
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
+      {v:'4.2.1',items:['Maintenance budget system per worker — auto-reload, custom amount, credit day','Budget balance on payroll worker cards (green/red, goes negative)','Add funds manually + Reset to zero in Settings','Display preferences in Settings — customize how many receipts, mileage, utilities and leases show','Button sound feedback on key actions','Manager dashboard collapsible sections']},
+      {v:'4.2',items:['FCM push notifications end-to-end — real-time alerts on your phone','Payroll module — log worker hours, track paid/unpaid shifts','Worker hour logging from maintenance and manager dashboards','Hourly rate field on tenant profiles','5+4 navigation layout','Debug alerts removed — all token storage silent']},
       {v:'4.1',items:['Bulletin board rank badges — colored circles with initials (Gold=Landlord, Purple=Manager, Orange=Maintenance, Blue=Tenant)','Send Reminder button on unpaid tenants in Payments tab','6th of month login alert for unpaid tenants','Forgot Password button polish + junk folder note']},
       {v:'4.0',items:['Property Manager role — full dashboard access for a trusted stand-in','Managers can view all tenants, rent status, YTD expenses, and properties','Managers have full to-do list access — add, check off, and delete','Managers can update maintenance request statuses','Managers can view recent expenses (read only — no add or delete)','Purple 🏢 Property Manager toggle on tenant profile (landlord only)']},
       {v:'3.1',items:['Forgot Password — reset link sent via Firebase to your email','Works on both Landlord and Tenant login screens']},
@@ -866,7 +884,7 @@ function renderSheet(){
         return '<div style="margin-bottom:20px">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
           +'<span style="background:#6366f122;color:#6366f1;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
-          +(ver.v==='4.1'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +(ver.v==='4.2.1'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
           +'</div>'
           +ver.items.map(function(item){return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #2e2c3d"><span style="color:#6366f1;font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:#f0eef8">'+item+'</span></div>';}).join('')
           +'</div>';
@@ -1025,7 +1043,7 @@ function _doRender(){
       +'<div><label>Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/><button onclick="S.showPassword=!S.showPassword;render()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7c7a90;font-size:16px;padding:0">'+(S.showPassword?'🙈':'👁')+'</button></div></div>'
       +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div>':'')
       +'</div>'
-      +'<button class="btn btn-primary" onclick="doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
+      +'<button class="btn btn-primary" onclick="clickSound();doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="margin-top:10px"><button onclick="doForgotPassword()" style="background:#6366f122;border:2px solid #6366f144;border-radius:12px;color:#6366f1;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;padding:12px 20px;width:100%;transition:all 0.2s">🔑 Forgot Password?</button><div style="font-size:10px;color:#4a4860;text-align:center;margin-top:6px">Reset link will be emailed to you. Check junk/spam if it doesn\'t arrive.</div></div>':'')
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
       +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
@@ -1130,11 +1148,8 @@ function _doRender(){
         +'<div><div style="font-size:11px;color:#7c7a90">Properties</div><div style="font-size:20px;font-weight:800;color:#8b5cf6">'+mgProps.length+'</div></div>'
         +'</div></div>'
         // To-do list — full access for manager
-        +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-        +'<div style="font-size:13px;font-weight:700">✅ To-Do List'+(mgTotal>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+mgDone+'/'+mgTotal+' done</span>':'')+'</div>'
-        +'<div style="display:flex;gap:6px;align-items:center"><input id="mgTodoInput" placeholder="Add task…" onkeydown="if(event.key===\'Enter\'&&this.value.trim()){addTodo(this.value.trim());this.value=\'\';}" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:5px 10px;color:#f0eef8;font-size:12px;width:140px;font-family:Nunito,sans-serif"/><button onclick="var el=document.getElementById(\'mgTodoInput\');if(el&&el.value.trim()){addTodo(el.value.trim());el.value=\'\';}" style="background:#6366f1;border:none;border-radius:8px;padding:5px 10px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:Nunito,sans-serif">+</button></div>'
-        +'</div>'
-        +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
+        +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(S.mgCollapsed.todos?'0':'8')+'px" onclick="S.mgCollapsed.todos=!S.mgCollapsed.todos;render()" style="cursor:pointer"><div style="font-size:13px;font-weight:700">✅ To-Do List'+(mgTotal>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+mgDone+'/'+mgTotal+' done</span>':'')+'</div><span style="color:#7c7a90;font-size:18px;cursor:pointer">'+(S.mgCollapsed.todos?'+':'−')+'</span></div>'
+        +(!S.mgCollapsed.todos?
           :S.todoItems.map(function(t){
             return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
               +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
@@ -1144,19 +1159,19 @@ function _doRender(){
           }).join(''))
         +'</div>'
         // Tenants
-        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">👥 Tenants</div>'
-        +(mgTenants.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No tenants</div>'
+        +'<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(S.mgCollapsed.tenants?'0':'10')+'px;cursor:pointer" onclick="S.mgCollapsed.tenants=!S.mgCollapsed.tenants;render()"><div style="font-size:13px;font-weight:700">👥 Tenants</div><span style="color:#7c7a90;font-size:18px">'+(S.mgCollapsed.tenants?'+':'−')+'</span></div>'
+        +(!S.mgCollapsed.tenants?(mgTenants.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No tenants</div>'
           :[].concat(mgTenants).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).map(function(t){
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d">'
               +'<div><div style="font-size:13px;font-weight:700">'+esc(t.name)+'</div>'
               +'<div style="font-size:11px;color:#7c7a90">'+esc(t.property||'')+(t.unit?' · Unit '+esc(t.unit):'')+'</div></div>'
               +'<div style="display:flex;align-items:center;gap:8px"><div style="font-size:13px;font-weight:700;color:#6366f1">'+fmt(t.rent)+'</div>'+pill(t.paid?'✓ Paid':'⏳ Unpaid',t.paid?'#4ade80':'#fbbf24')+'</div>'
               +'</div>';
-          }).join(''))
+          }).join('')):'')
         +'</div>'
         // Maintenance requests
-        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">🔧 Maintenance Requests</div>'
-        +(mgRequests.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No requests</div>'
+        +'<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(S.mgCollapsed.requests?'0':'10')+'px;cursor:pointer" onclick="S.mgCollapsed.requests=!S.mgCollapsed.requests;render()"><div style="font-size:13px;font-weight:700">🔧 Maintenance Requests</div><span style="color:#7c7a90;font-size:18px">'+(S.mgCollapsed.requests?'+':'−')+'</span></div>'
+        +(!S.mgCollapsed.requests?(mgRequests.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No requests</div>'
           :mgRequests.map(function(r){
             var uc=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';
             return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d">'
@@ -1166,18 +1181,18 @@ function _doRender(){
               +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">'+pill(r.urgency,uc)
               +'<select onchange="updateRequestStatus(\''+r.id+'\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:8px;min-width:100px"><option'+(r.status==='New'?' selected':'')+'>New</option><option'+(r.status==='In Progress'?' selected':'')+'>In Progress</option><option'+(r.status==='Done'?' selected':'')+'>Done</option></select>'
               +'</div></div></div>';
-          }).join(''))
+          }).join('')):'')
         +'</div>'
         // Recent expenses (read only)
-        +'<div class="card" style="margin-bottom:8px"><div style="font-size:13px;font-weight:700;margin-bottom:10px">💸 Recent Expenses</div>'
-        +(mgReceipts.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No expenses</div>'
+        +'<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(S.mgCollapsed.expenses?'0':'10')+'px;cursor:pointer" onclick="S.mgCollapsed.expenses=!S.mgCollapsed.expenses;render()"><div style="font-size:13px;font-weight:700">💸 Recent Expenses</div><span style="color:#7c7a90;font-size:18px">'+(S.mgCollapsed.expenses?'+':'−')+'</span></div>'
+        +(!S.mgCollapsed.expenses?(mgReceipts.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No expenses</div>'
           :mgReceipts.slice(0,5).map(function(r){
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d">'
               +'<div><div style="font-size:13px;font-weight:700">'+esc(r.vendor)+'</div>'
               +'<div style="font-size:11px;color:#7c7a90">'+r.date+' · '+esc(r.category)+'</div></div>'
               +'<div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div>'
               +'</div>';
-          }).join(''))
+          }).join('')):'')
         +'</div>'
         // Hours Worked (manager's own shifts)
         +(function(){
@@ -1271,7 +1286,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.1</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.1</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -1300,13 +1315,13 @@ function _doRender(){
       var bl=tb.id==='maintenance'?badgeLeft(doneTodoBadge):'';
       var unpaidShifts=S.payrollShifts.filter(function(s){return !s.paid;}).length;
       var pb=tb.id==='payroll'?badge(unpaidShifts,'#f97316'):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+bl+pb+'<span>'+tb.l+'</span></button>';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="clickSound();S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+bl+pb+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div><div class="nav-row">'
     +[{id:'bulletin',l:'Bulletin',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>'},{id:'receipts',l:'Expenses',i:ICO.receipt},{id:'properties',l:'Properties',i:ICO.building},{id:'settings',l:'Settings',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>'}]
     .map(function(tb){
       var b=tb.id==='bulletin'?badge(newBulletinCount):'';
-      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\',S.bulletinPosts.length);':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
+      return '<button class="nav-btn'+(S.tab===tb.id?' active':'')+'" onclick="clickSound();'+(tb.id==='bulletin'?'localStorage.setItem(\'lastSeenBulletinCount\',S.bulletinPosts.length);':'')+'S.tab=\''+tb.id+'\';S.selectedTenant=null;render()" style="position:relative">'+tb.i+b+'<span>'+tb.l+'</span></button>';
     }).join('')
     +'</div></nav>';
 
@@ -1344,7 +1359,7 @@ function _doRender(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -1385,13 +1400,13 @@ function _doRender(){
       // Utilities tracker
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">⚡ Monthly Utilities</div><div style="display:flex;align-items:center;gap:8px">'+(filteredUtils.length>2?'<button onclick="S.showAllUtils=!S.showAllUtils;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllUtils?'Show Less':'View All')+'</button>':'')+(isCurrentMonth?'<button onclick="openSheet(\'addUtility\',{})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button>':'<span style="font-size:11px;color:#7c7a90">Past month — read only</span>')+'</div></div>'
       +(filteredUtils.length===0?'<div style="text-align:center;color:#7c7a90;font-size:13px;padding:12px 0">No utilities logged'+(S.selectedProperty!=='all'?' for '+esc(S.selectedProperty):' this month')+'</div>'
-        :filteredUtils.slice(0,S.showAllUtils?9999:2).map(function(u){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(u.name)+'</div><div style="font-size:11px;color:#7c7a90">'+esc(u.date||'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px;font-weight:800;color:#fb923c">-'+fmtS(u.amount)+'</span>'+(isCurrentMonth?'<button onclick="toggleUtilLock(\''+u.id+'\')" style="background:'+(u.locked?'#6366f122':'#22202f')+';border:1px solid '+(u.locked?'#6366f1':'#2e2c3d')+';border-radius:8px;padding:5px 8px;cursor:pointer;color:'+(u.locked?'#6366f1':'#7c7a90')+'" title="'+(u.locked?'Locked — carries over monthly':'Unlocked')+'">'+(u.locked?'🔒':'🔓')+'</button>':'')+(isCurrentMonth?'<button onclick="delUtil(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 8px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>':'')+'</div></div>';}).join('')
+        :filteredUtils.slice(0,S.showAllUtils?9999:S.dispUtils).map(function(u){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:14px;font-weight:700">'+esc(u.name)+'</div><div style="font-size:11px;color:#7c7a90">'+esc(u.date||'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px;font-weight:800;color:#fb923c">-'+fmtS(u.amount)+'</span>'+(isCurrentMonth?'<button onclick="toggleUtilLock(\''+u.id+'\')" style="background:'+(u.locked?'#6366f122':'#22202f')+';border:1px solid '+(u.locked?'#6366f1':'#2e2c3d')+';border-radius:8px;padding:5px 8px;cursor:pointer;color:'+(u.locked?'#6366f1':'#7c7a90')+'" title="'+(u.locked?'Locked — carries over monthly':'Unlocked')+'">'+(u.locked?'🔒':'🔓')+'</button>':'')+(isCurrentMonth?'<button onclick="delUtil(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 8px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>':'')+'</div></div>';}).join('')
         +'<div style="display:flex;justify-content:space-between;padding:10px 0 2px"><span style="font-size:13px;font-weight:700">Total</span><span style="font-size:14px;font-weight:800;color:#fb923c">-'+fmtS(totalUtilF)+'</span></div>')
       +'</div>'
       // Lease watch
       +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:14px;font-weight:700">Lease Watch</div><button onclick="S.showAllLeases=!S.showAllLeases;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllLeases?'Show Less':'View All')+'</button></div>'
       +(filteredTenants.length===0?'<div style="color:#7c7a90;font-size:13px;text-align:center;padding:10px 0">No tenants'+(S.selectedProperty!=='all'?' at '+esc(S.selectedProperty):'')+'</div>'
-        :[].concat(filteredTenants).sort(function(a,b){return new Date(a.lease||'2099-01-01')-new Date(b.lease||'2099-01-01');}). slice(0,S.showAllLeases?9999:3).map(function(t){var ls=leaseStatus(t.lease||'2099-01-01');return '<div class="card-row" onclick="S.selectedTenant=\''+t.id+'\';S.tab=\'tenants\';render()" style="cursor:pointer"><div><div style="font-size:14px;font-weight:700">'+esc(t.name)+'</div><div style="font-size:12px;color:#7c7a90">'+esc(t.unit)+' · expires '+esc(t.lease||'—')+'</div></div>'+pill(ls.label,ls.color)+'</div>';}).join(''))
+        :[].concat(filteredTenants).sort(function(a,b){return new Date(a.lease||'2099-01-01')-new Date(b.lease||'2099-01-01');}). slice(0,S.showAllLeases?9999:S.dispLeases).map(function(t){var ls=leaseStatus(t.lease||'2099-01-01');return '<div class="card-row" onclick="S.selectedTenant=\''+t.id+'\';S.tab=\'tenants\';render()" style="cursor:pointer"><div><div style="font-size:14px;font-weight:700">'+esc(t.name)+'</div><div style="font-size:12px;color:#7c7a90">'+esc(t.unit)+' · expires '+esc(t.lease||'—')+'</div></div>'+pill(ls.label,ls.color)+'</div>';}).join(''))
       +'</div>'
       // Quick actions
       +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Quick Actions</div><div class="grid-2">'
@@ -1547,6 +1562,21 @@ function _doRender(){
       +'<div style="text-align:center"><div style="font-size:22px;font-weight:800;color:#fbbf24">'+paidCount+'/'+tenantCount+'</div><div style="font-size:11px;color:#7c7a90">Paid</div></div>'
       +'</div>'
       +'</div>'
+      // Display Preferences
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">DISPLAY PREFERENCES</div>'
+      +'<div class="card" style="padding:0">'
+      +[['Receipts shown','dispReceipts',S.dispReceipts],['Mileage entries shown','dispMileage',S.dispMileage],['Utilities shown','dispUtils',S.dispUtils],['Leases shown','dispLeases',S.dispLeases]]
+      .map(function(row,i){
+        return '<div class="card-row" style="padding:12px 16px'+(i===0?'':';border-top:1px solid #2e2c3d')+'">'
+          +'<span style="font-size:14px;color:#f0eef8">'+row[0]+'</span>'
+          +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<button onclick="S[\''+row[1]+'\']=Math.max(1,S[\''+row[1]+'\']-1);render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">−</button>'
+          +'<span style="font-size:16px;font-weight:800;color:#6366f1;min-width:20px;text-align:center">'+row[2]+'</span>'
+          +'<button onclick="S[\''+row[1]+'\']=Math.min(20,S[\''+row[1]+'\']+1);render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">+</button>'
+          +'</div>'
+          +'</div>';
+      }).join('')
+      +'</div>'
       // Maintenance Budget section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">MAINTENANCE BUDGET</div>'
       +(function(){
@@ -1603,7 +1633,7 @@ function _doRender(){
       // About section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
       +'<div class="card" style="padding:0">'
-      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.1</span></div>'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.2.1</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
       +'</div>'
@@ -1643,13 +1673,13 @@ function _doRender(){
         +S.properties.map(function(p){return '<button onclick="S.mileageFilter=\''+esc(p.name)+'\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter===p.name?'#6366f1':'#22202f')+';color:'+(S.mileageFilter===p.name?'#fff':'#7c7a90')+'">'+esc(p.name)+'</button>';}).join('')
         +'<button onclick="S.mileageFilter=\'Other\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter==='Other'?'#6366f1':'#22202f')+';color:'+(S.mileageFilter==='Other'?'#fff':'#7c7a90')+'">Other</button>'
         +'</div>'
-        +curMileageProp.slice(0,S.showAllMileage?9999:5).map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
+        +curMileageProp.slice(0,S.showAllMileage?9999:S.dispMileage).map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
         +(curMileageProp.length>5?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllMileage=!S.showAllMileage;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllMileage?'Show Less':'View All '+curMileageProp.length+' trips')+'</button></div>':'')
         +'</div>'
       :'')
       +(S.scanError?'<div style="background:#fbbf2422;border-radius:12px;padding:12px 14px;margin-bottom:12px;color:#fbbf24;font-size:13px">⚠️ '+esc(S.scanError)+'</div>':'')
       +(Object.keys(byCat).length>0?'<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px;scrollbar-width:none">'+Object.entries(byCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<div style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:8px 14px;white-space:nowrap;flex-shrink:0"><div style="font-size:11px;color:#7c7a90">'+esc(e[0])+'</div><div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(e[1])+'</div></div>';}).join('')+'</div>':'')
-      +[].concat(filteredReceipts).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,S.showAllReceipts?9999:3).map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')
+      +[].concat(filteredReceipts).sort(function(a,b){return new Date(b.date)-new Date(a.date);}).slice(0,S.showAllReceipts?9999:S.dispReceipts).map(function(r){return '<div class="card" style="display:flex;gap:12px;align-items:center">'+(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>'  :'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div><div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'+(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')+(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')+(r.notes?'<div style="font-size:11px;color:#7c7a90;font-style:italic;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.notes)+'</div>':'')+'<div style="margin-top:4px">'+pill(r.confidence,r.confidence==='high'?'#4ade80':r.confidence==='medium'?'#fbbf24':'#f87171')+'</div></div><div style="text-align:right;flex-shrink:0"><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div><div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end"><button onclick="openSheet(\'editReceipt\',JSON.parse(JSON.stringify(S.receipts.find(function(x){return x.id===\''+r.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="delReceipt(\''+r.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div></div>';}).join('')
       +(filteredReceipts.length>3?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllReceipts=!S.showAllReceipts;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllReceipts?'Show Less':'View All '+filteredReceipts.length+' receipts')+'</button></div>':'')
       +(filteredReceipts.length===0&&!S.scanning?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">'+(S.receiptTypeFilter==='all'?'No receipts yet':'No '+S.receiptTypeFilter+' receipts yet')+'</div>':'')
       +'</div>';

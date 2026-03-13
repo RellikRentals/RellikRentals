@@ -1468,6 +1468,7 @@ function _doRender(){
     var filteredTenants = S.selectedProperty==='all' ? S.tenants : S.tenants.filter(function(t){return t.property===S.selectedProperty;});
     var filteredUtils = S.selectedProperty==='all' ? S.utilities : S.utilities.filter(function(u){return u.property===S.selectedProperty;});
     var curYear=new Date().getFullYear();
+    var viewedMonthPrefix=S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0');
     var totalRentF=filteredTenants.reduce(function(a,t){return a+Number(t.rent);},0);
     var collectedF=filteredTenants.filter(function(t){return t.paid;}).reduce(function(a,t){return a+Number(t.rent);},0);
     var outstandingF=totalRentF-collectedF;
@@ -1776,7 +1777,6 @@ function _doRender(){
   }
 
   else if(S.tab==='receipts'){
-    var viewedMonthPrefix=S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0');
     var filteredReceipts=S.receipts.filter(function(r){
       if(!(r.date||'').startsWith(viewedMonthPrefix)) return false;
       if(S.receiptTypeFilter==='capital') return r.expType==='capital';

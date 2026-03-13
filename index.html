@@ -1522,7 +1522,7 @@ function _doRender(){
       +'</div>'
       +'</div></div>'
       +'<div class="grid-2" style="margin-bottom:12px">'
-      +[['Collected',fmtS(collectedF),'#4ade80',paidCountF+'/'+filteredTenants.length+' tenants'],['Outstanding',fmtS(outstandingF),'#fbbf24',(filteredTenants.length-paidCountF)+' pending'],['Expenses',fmtS(totalExpF),'#f87171',filteredReceipts.length+' receipts'],['Utilities',fmtS(totalUtilF),'#fb923c',filteredUtils.length+' entries']]
+      +[['Collected',fmtS(collectedF),'#4ade80',paidCountF+'/'+filteredTenants.length+' tenants'],['Outstanding',fmtS(outstandingF),'#fbbf24',(filteredTenants.length-paidCountF)+' pending'],['Expenses',fmtS(totalExpF),'#f87171',S.receipts.filter(function(r){return (r.date||'').startsWith(viewedMonthPrefix);}).length+' receipts'],['Utilities',fmtS(totalUtilF),'#fb923c',filteredUtils.length+' entries']]
       .map(function(s){return '<div class="card" style="margin-bottom:0;padding:14px 16px"><div style="font-size:11px;color:#7c7a90;font-weight:600;margin-bottom:6px">'+s[0].toUpperCase()+'</div><div style="font-size:20px;font-weight:800;color:'+s[2]+'">'+s[1]+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">'+s[3]+'</div></div>';}).join('')
       +'</div>'
       // Net income

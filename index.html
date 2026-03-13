@@ -495,14 +495,15 @@ function backfillRent(month,year){
   var promises=paid.map(function(t){return syncTenantReceiptMonth(t,monthName,yr);});
   Promise.all(promises).then(function(){alert('✓ Backfilled '+paid.length+' receipts for '+monthName+' '+yr);closeSheet();});
 }
+function syncTenantReceipt(t,month,year){
+  var key=t.email||('noemail_'+t.id);
+  var p=pid(key); var rid=year+'-'+month+'-'+t.id;
+  return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:new Date().toISOString().slice(0,10),status:'Paid'});
+}
 function syncTenantReceiptMonth(t,month,year){
   var key=t.email||('noemail_'+t.id);
   var p=pid(key); var rid=year+'-'+month+'-'+t.id;
   return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:year+'-'+String(MONTHS.indexOf(month)+1).padStart(2,'0')+'-01',status:'Paid'});
-}
-  var key=t.email||('noemail_'+t.id);
-  var p=pid(key); var rid=year+'-'+month+'-'+t.id;
-  return fsSet('tenantReceipts/'+p+'/receipts/'+rid,{tenantEmail:key,tenantName:t.name,unit:t.unit,property:t.property||'',amount:t.rent,month:month,year:year,date:new Date().toISOString().slice(0,10),status:'Paid'});
 }
 
 // ── Email ──────────────────────────────────────────────────────────

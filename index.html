@@ -1491,7 +1491,7 @@ function _doRender(){
           var matchProp=S.selectedProperty==='all'||m.property===S.selectedProperty;
           return matchMonth&&matchProp;
         });
-        var mTotal=mLog.reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+        var mTotal=Math.round(mLog.reduce(function(a,m){return a+(Number(m.distance)||0);},0)*10)/10;
         var mUnit=mLog.length>0?mLog[0].unit:'km';
         return mTotal>0?'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px">🚗 '+mTotal+' '+mUnit+' this month</div>':'';
       })()
@@ -1771,7 +1771,7 @@ function _doRender(){
     // Mileage for current month
     var curMileage=S.mileageLog.filter(function(m){return m.date&&m.date.startsWith(S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0'));});
     var curMileageProp=S.mileageFilter?curMileage.filter(function(m){return m.property===S.mileageFilter;}):curMileage;
-    var totalMiles=curMileageProp.reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+    var totalMiles=Math.round(curMileageProp.reduce(function(a,m){return a+(Number(m.distance)||0);},0)*10)/10;
     var mileUnit=curMileage.length>0?curMileage[0].unit:'km';
     c='<div class="top-bar"><div class="page-title">Expenses</div>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
       +'<div style="padding:0 16px">'

@@ -260,7 +260,7 @@ function delRentReceipt(tenantEmail,receiptId){if(confirm('Delete this rent rece
 function saveUtil(u,mk){return fsSet('users/'+S.user.uid+'/util_'+(mk||monthKey())+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
 function saveDisplayPrefs(){fsSet('users/'+S.user.uid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases});}
-function loadDisplayPrefs(uid){var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){if(d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;render();}});}
+function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;render();}}catch(e){}}).catch(function(){});}catch(e){}}
 function toggleUtilLock(id){
   var u=S.utilities.find(function(x){return x.id===id;});
   if(!u)return;

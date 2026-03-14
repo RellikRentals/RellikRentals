@@ -166,6 +166,7 @@ function unsub(){_unsubs.forEach(function(u){u();});_unsubs=[];if(S._utilUnsub){
 function subscribeLandlord(uid){
   unsub();
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  loadDisplayPrefs(uid);
   _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){S.tenants=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});if(S._subscribeYTDReceipts){S.ytdRentReceipts=[];S._subscribeYTDReceipts();}render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){S.receipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
@@ -258,6 +259,8 @@ function delReceipt(id){return fsDel('users/'+S.user.uid+'/receipts/'+id);}
 function delRentReceipt(tenantEmail,receiptId){if(confirm('Delete this rent receipt?'))return fsDel('tenantReceipts/'+pid(tenantEmail)+'/receipts/'+receiptId);}
 function saveUtil(u,mk){return fsSet('users/'+S.user.uid+'/util_'+(mk||monthKey())+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
+function saveDisplayPrefs(){fsSet('users/'+S.user.uid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases});}
+function loadDisplayPrefs(uid){var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){if(d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;render();}});}
 function toggleUtilLock(id){
   var u=S.utilities.find(function(x){return x.id===id;});
   if(!u)return;
@@ -1705,9 +1708,9 @@ function _doRender(){
         return '<div class="card-row" style="padding:12px 16px'+(i===0?'':';border-top:1px solid #2e2c3d')+'">'
           +'<span style="font-size:14px;color:#f0eef8">'+row[0]+'</span>'
           +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<button onclick="S[\''+row[1]+'\']=Math.max(1,S[\''+row[1]+'\']-1);render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">−</button>'
+          +'<button onclick="S[\''+row[1]+'\']=Math.max(1,S[\''+row[1]+'\']-1);saveDisplayPrefs();render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">−</button>'
           +'<span style="font-size:16px;font-weight:800;color:#6366f1;min-width:20px;text-align:center">'+row[2]+'</span>'
-          +'<button onclick="S[\''+row[1]+'\']=Math.min(20,S[\''+row[1]+'\']+1);render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">+</button>'
+          +'<button onclick="S[\''+row[1]+'\']=Math.min(20,S[\''+row[1]+'\']+1);saveDisplayPrefs();render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">+</button>'
           +'</div>'
           +'</div>';
       }).join('')

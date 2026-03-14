@@ -145,7 +145,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -974,7 +974,7 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
-      {v:'4.2.3',items:['YTD rent now accurate — fixed collectionGroup pulling expense receipts into rent totals','Tenants without email (e.g. older tenants) now correctly included in YTD calculations','Mileage totals no longer show floating point decimals']},
+      {v:'4.2.3',items:['YTD rent now accurate — fixed collectionGroup pulling expense receipts into rent totals','Tenants without email (e.g. older tenants) now correctly included in YTD calculations','Mileage totals no longer show floating point decimals','Display preferences now persist across sessions','Discovered partially valid proof of simulation theory']},
       {v:'4.2.2',items:['Budget and Owed stacked cleanly on worker cards — labeled, color coded, no overlap','Hourly rate now set via popup — no more mid-typing re-renders','Shift amounts fall back to current worker rate if logged without one']},
       {v:'4.2.1',items:['Maintenance budget system per worker — auto-reload, custom amount, credit day','Budget balance on payroll worker cards (green/red, goes negative)','Add funds manually + Reset to zero in Settings','Display preferences in Settings — customize how many receipts, mileage, utilities and leases show','Button sound feedback on key actions','Manager dashboard collapsible sections']},
       {v:'4.2',items:['FCM push notifications end-to-end — real-time alerts on your phone','Payroll module — log worker hours, track paid/unpaid shifts','Worker hour logging from maintenance and manager dashboards','Hourly rate field on tenant profiles','5+4 navigation layout','Debug alerts removed — all token storage silent']},
@@ -1586,7 +1586,7 @@ function _doRender(){
         +'</div>';
     }else{
       var sorts=[{v:'added',l:'Date Added'},{v:'name',l:'Name'},{v:'rent',l:'Rent'},{v:'lease',l:'Lease End'}];
-      var sorted=[].concat(S.tenants).sort(function(a,b){
+      var sorted=[].concat(S.tenants).filter(function(t){return !S.tenantPropertyFilter||t.property===S.tenantPropertyFilter;}).sort(function(a,b){
         if(S.tenantSort==='name')return a.name.localeCompare(b.name);
         if(S.tenantSort==='rent')return Number(b.rent)-Number(a.rent);
         if(S.tenantSort==='lease')return new Date(a.lease||'2099-01-01')-new Date(b.lease||'2099-01-01');
@@ -1596,6 +1596,10 @@ function _doRender(){
         +'<div style="padding:0 16px">'
         +'<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;margin-bottom:4px">'
         +sorts.map(function(s){return '<button onclick="S.tenantSort=\''+s.v+'\';render()" style="background:'+(S.tenantSort===s.v?'#6366f1':'#22202f')+';border:1px solid '+(S.tenantSort===s.v?'#6366f1':'#2e2c3d')+';border-radius:99px;padding:6px 14px;color:'+(S.tenantSort===s.v?'#fff':'#7c7a90')+';font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">'+s.l+'</button>';}).join('')
+        +'</div>'
+        +'<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;margin-bottom:4px">'
+        +'<button onclick="S.tenantPropertyFilter=null;render()" style="background:'+(S.tenantPropertyFilter?'#22202f':'#4ade8022')+';border:1px solid '+(S.tenantPropertyFilter?'#2e2c3d':'#4ade8044')+';border-radius:99px;padding:5px 12px;color:'+(S.tenantPropertyFilter?'#7c7a90':'#4ade80')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">All ('+S.tenants.length+')</button>'
+        +S.properties.map(function(p){var count=S.tenants.filter(function(t){return t.property===p.name;}).length;return '<button onclick="S.tenantPropertyFilter=\''+esc(p.name)+'\';render()" style="background:'+(S.tenantPropertyFilter===p.name?'#6366f122':'#22202f')+';border:1px solid '+(S.tenantPropertyFilter===p.name?'#6366f1':'#2e2c3d')+';border-radius:99px;padding:5px 12px;color:'+(S.tenantPropertyFilter===p.name?'#6366f1':'#7c7a90')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:Nunito,sans-serif">'+esc(p.name)+' ('+count+')</button>';}).join('')
         +'</div>'
         +(sorted.length===0?'<div style="text-align:center;color:#7c7a90;padding:40px 0;font-size:14px">No tenants yet.<br>Tap + Add to get started.</div>'
           :sorted.map(function(t){var ls=leaseStatus(t.lease||'2099-01-01');return '<div class="card" onclick="S.selectedTenant=\''+t.id+'\';render()" style="cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="flex:1"><div style="font-size:16px;font-weight:800">'+esc(t.name)+'</div>'+(t.name2?'<div style="font-size:12px;color:#7c7a90;margin-top:1px">& '+esc(t.name2)+'</div>':'')+'<div style="font-size:13px;color:#7c7a90;margin-top:2px">'+esc(t.unit)+' · '+esc(t.property)+'</div><div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+pill(t.paid?'✓ Paid':'Pending',t.paid?'#4ade80':'#fbbf24')+' '+pill(ls.label,ls.color)+(t.locksChanged?' '+pill('🔒 Locks','#6366f1'):'')+'</div></div><div style="text-align:right"><div style="font-size:18px;font-weight:800;color:#6366f1">'+fmtS(t.rent)+'</div><div style="font-size:11px;color:#7c7a90">per month</div><div style="margin-top:8px">'+ICO.chevron+'</div></div></div></div>';}).join(''))

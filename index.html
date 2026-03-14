@@ -77,12 +77,12 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, query, collectionGroup, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-messaging.js";const app = initializeApp({apiKey:"AIzaSyAXKtBIVFazSDS8oY9tj8mmdIgGfiQgLr4",authDomain:"rellikrental.firebaseapp.com",projectId:"rellikrental",storageBucket:"rellikrental.firebasestorage.app",messagingSenderId:"1024695943624",appId:"1:1024695943624:web:aeb499cfd882b49624c0fd"});
 window.VAPID_KEY = "BDJPT75-1EGH11dC5nk7GQV-IjgOceWwhHq0jsgax6XTXAEURjlp9K5uSGMm8X8XRRvx13yV4QiqD508FDJZW7Y";
 var _messaging = null;
 var _fcmMessaging = getMessaging(app);
-window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs,fcmMessaging:_fcmMessaging,getToken,onMessage};
+window._fb = {auth:getAuth(app),db:getFirestore(app),signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,collection,collectionGroup,doc,setDoc,deleteDoc,onSnapshot,query,getDocs,getDoc,fcmMessaging:_fcmMessaging,getToken,onMessage};
 window.dispatchEvent(new Event('fbReady'));
 </script>
 

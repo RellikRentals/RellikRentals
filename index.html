@@ -145,8 +145,8 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', showShopping:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3,
@@ -405,6 +405,30 @@ function subscribeTodos(uid){
     S.todoItems=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(a.createdAt)-new Date(b.createdAt);});
     render();
   }));
+  // Shopping list subscription
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/shopping')),function(s){
+    S.shoppingItems=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(a.createdAt)-new Date(b.createdAt);});
+    render();
+  }));
+}
+function addShoppingItem(textArg){
+  var text=textArg||(S.shoppingInput||'').trim();
+  if(!text)return;
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsSet('users/'+uid+'/shopping/'+mkid(),{text:text,ordered:false,createdAt:new Date().toISOString()});
+  S.shoppingInput='';render();
+}
+function toggleShoppingItem(id){
+  var item=S.shoppingItems.find(function(x){return x.id===id;});
+  if(!item)return;
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsSet('users/'+uid+'/shopping/'+id,Object.assign({},item,{ordered:!item.ordered}));
+}
+function delShoppingItem(id){
+  if(S.isTenant)return;
+  fsDel('users/'+S.user.uid+'/shopping/'+id);
 }
 function addTodo(textArg){
   var text=textArg||(S.todoInput||'').trim();
@@ -1798,7 +1822,25 @@ function _doRender(){
     var curMileageProp=S.mileageFilter?curMileage.filter(function(m){return m.property===S.mileageFilter;}):curMileage;
     var totalMiles=Math.round(curMileageProp.reduce(function(a,m){return a+(Number(m.distance)||0);},0)*10)/10;
     var mileUnit=curMileage.length>0?curMileage[0].unit:'km';
-    c='<div class="top-bar"><div class="page-title">Expenses</div>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
+    // Shopping list full screen modal
+    if(S.showShopping){
+      var isLandlord=!S.isTenant;
+      var canEdit=!S.isTenant||S.isMaintenance||S.isPropertyManager;
+      c='<div class="top-bar"><button onclick="S.showShopping=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div style="font-size:18px;font-weight:800;flex:1;margin-left:8px">🛒 Shopping List</div></div>'
+        +'<div style="padding:0 16px">'
+        +(canEdit?'<div style="display:flex;gap:8px;margin-bottom:16px"><input id="shopInput" placeholder="Add item..." value="'+esc(S.shoppingInput||'')+'" oninput="S.shoppingInput=this.value" onkeydown="if(event.key===\'Enter\')addShoppingItem()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 14px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px"/><button onclick="addShoppingItem()" style="background:#6366f1;border:none;border-radius:12px;padding:10px 16px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button></div>':'')
+        +'<div class="card" style="padding:0">'
+        +(S.shoppingItems.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">No items yet</div>'
+          :S.shoppingItems.map(function(item){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2e2c3d">'
+            +'<div onclick="'+(canEdit?'toggleShoppingItem(\''+item.id+'\')':'')+'" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(item.ordered?'#4ade80':'#2e2c3d')+';background:'+(item.ordered?'#4ade80':'transparent')+';cursor:'+(canEdit?'pointer':'default')+';flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(item.ordered?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+            +'<span style="flex:1;font-size:14px;font-weight:600;'+(item.ordered?'text-decoration:line-through;color:#7c7a90':'color:#f0eef8')+'">'+esc(item.text)+'</span>'
+            +(isLandlord?'<button onclick="delShoppingItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>':'')
+            +'</div>';}).join(''))
+        +'</div></div>';
+      root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>'+nav+'</div>';
+      return;
+    }
+    c='<div class="top-bar"><div class="page-title">Expenses</div><button onclick="S.showShopping=true;render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:8px 12px;color:#7c7a90;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🛒 List</button>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
       +'<div style="padding:0 16px">'
       +'<div style="display:flex;gap:8px;margin-bottom:12px"><button onclick="S.receiptTypeFilter=\'all\';render()" style="'+btnStyle('all')+'">All</button><button onclick="S.receiptTypeFilter=\'operating\';render()" style="'+btnStyle('operating')+'">Operating</button><button onclick="S.receiptTypeFilter=\'capital\';render()" style="'+btnStyle('capital')+'">Capital</button></div>'
       +'<div class="card" style="text-align:center;padding:28px 16px;cursor:pointer;border-style:dashed;border-color:'+(S.scanning?'#6366f1':'#2e2c3d')+'" onclick="document.getElementById(\'fi\').click()">'

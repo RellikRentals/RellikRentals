@@ -146,7 +146,7 @@ var S = {
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3,
@@ -177,6 +177,8 @@ function subscribeLandlord(uid){
   subscribeMileage(uid);
   subscribePayroll(uid);
   subscribeBudgets(uid);
+  subscribeCapitalAssets(uid);
+  subscribeMortgages(uid);
   carryOverLockedUtils(uid);
   checkAndCreditBudgets(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
@@ -246,6 +248,46 @@ function subscribeTenantPortal(email){
 
 function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
 function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
+
+// ── Capital Assets ────────────────────────────────────────────────
+var CCA_CLASSES=[
+  {cls:'Class 1',rate:4,desc:'Rental buildings (post-1987)'},
+  {cls:'Class 3',rate:5,desc:'Rental buildings (pre-1988)'},
+  {cls:'Class 6',rate:10,desc:'Frame/log buildings'},
+  {cls:'Class 8',rate:20,desc:'Appliances, equipment, furniture'},
+  {cls:'Class 10',rate:30,desc:'Vehicles'},
+  {cls:'Class 12',rate:100,desc:'Small tools under $500'},
+  {cls:'Class 43',rate:30,desc:'Electrical equipment'},
+  {cls:'Other',rate:0,desc:'Custom rate'},
+];
+function calcUCC(cost,rate,purchaseDate){
+  if(!cost||!purchaseDate)return Number(cost)||0;
+  var yrs=new Date().getFullYear()-new Date(purchaseDate).getFullYear();
+  if(yrs<=0)return Number(cost)*(1-rate/100*0.5); // half-year rule year 1
+  var ucc=Number(cost)*(1-rate/100*0.5); // after year 1
+  for(var i=1;i<yrs;i++) ucc=ucc*(1-rate/100);
+  return Math.max(0,ucc);
+}
+function saveCapitalAsset(d){
+  var uid=S.user.uid;
+  var cls=CCA_CLASSES.find(function(c){return c.cls===d.ccaClass;})||{rate:0};
+  var rate=d.customRate!=null?Number(d.customRate):cls.rate;
+  var ucc=calcUCC(d.cost,rate,d.purchaseDate);
+  fsSet('users/'+uid+'/capitalAssets/'+d.id,Object.assign({},d,{ccaRate:rate,ucc:ucc,updatedAt:new Date().toISOString()}));
+}
+function delCapitalAsset(id){if(confirm('Delete this asset?'))fsDel('users/'+S.user.uid+'/capitalAssets/'+id);}
+
+// ── Mortgages ─────────────────────────────────────────────────────
+function saveMortgage(d){
+  var uid=S.user.uid;
+  var principal=Number(d.principal)||0;
+  var rate=Number(d.rate)||0;
+  var payment=Number(d.payment)||0;
+  var monthlyInterest=principal*(rate/100/12);
+  var annualInterest=monthlyInterest*12;
+  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,monthlyInterest:monthlyInterest,annualInterest:annualInterest,updatedAt:new Date().toISOString()}));
+}
+function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.user.uid+'/mortgages/'+id);}
 
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
@@ -459,6 +501,20 @@ function delTodo(id){
   fsDel('users/'+uid+'/todos/'+id);
 }
 
+function subscribeCapitalAssets(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/capitalAssets')),function(s){
+    S.capitalAssets=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(a.purchaseDate)-new Date(b.purchaseDate);});
+    render();
+  }));
+}
+function subscribeMortgages(uid){
+  var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/mortgages')),function(s){
+    S.mortgages=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
+}
 function subscribeMileage(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'users/'+uid+'/mileage')),function(s){
@@ -746,7 +802,7 @@ function doSignOut(){
   var f=fb();
   f.signOut(f.auth).then(function(){
     unsub();
-    S.tenants=[];S.receipts=[];S.utilities=[];S.properties=[];S.tenantProfile=null;
+    S.tenants=[];S.receipts=[];S.utilities=[];S.properties=[];S.tenantProfile=null;S.capitalAssets=[];S.mortgages=[];
     S.tab='home';S.selectedTenant=null;S.sheet=null;
   });
 }
@@ -1095,6 +1151,38 @@ function renderSheet(){
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetAddShift()">Log Hours</button></div>';
   }
 
+
+  else if(S.sheet==='addAsset'||S.sheet==='editAsset'){
+    var d=S.sheetData;
+    var isEditA=S.sheet==='editAsset';
+    title=(isEditA?'✏️ Edit':'🏗️ Add')+' Capital Asset';
+    var allProps=S.properties.length>0?S.properties:[];
+    var propSelA='<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="">— Select —</option>'+allProps.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>';
+    var ccaSel='<div><label>CCA Class</label><select onchange="S.sheetData.ccaClass=this.value;S.sheetData.customRate=null;renderSheet()">'+CCA_CLASSES.map(function(c){return '<option value="'+c.cls+'"'+(d.ccaClass===c.cls?' selected':'')+'>'+c.cls+' ('+c.rate+'%) — '+c.desc+'</option>';}).join('')+'</select></div>';
+    var selClass=CCA_CLASSES.find(function(c){return c.cls===d.ccaClass;})||CCA_CLASSES[0];
+    var rateField=selClass.cls==='Other'?inp('CCA Rate (%)','number',d.customRate||'','customRate','e.g. 20'):'';
+    var previewUCC='';
+    if(d.cost&&d.purchaseDate&&d.ccaClass){
+      var r2=d.customRate!=null?Number(d.customRate):selClass.rate;
+      var ucc2=calcUCC(Number(d.cost),r2,d.purchaseDate);
+      previewUCC='<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:4px"><div style="font-size:11px;color:#7c7a90;margin-bottom:4px">ESTIMATED CURRENT UCC</div><div style="font-size:20px;font-weight:800;color:#fbbf24">'+fmtS(ucc2)+'</div><div style="font-size:11px;color:#4a4860;margin-top:2px">Based on '+r2+'% declining balance + half-year rule</div></div>';
+    }
+    body='<div class="frow">'+inp('Asset Name','text',d.name||'','name','e.g. Fridge Unit 2, Roof Replacement')+propSelA+inp('Purchase Cost ($)','number',d.cost||'','cost','0.00')+inp('Purchase Date','date',d.purchaseDate||'','purchaseDate')+ccaSel+rateField+inp('Notes (optional)','text',d.notes||'','notes','e.g. Installed during renovation')+previewUCC+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveAsset()">'+(isEditA?'Save Changes':'Add Asset')+'</button></div>';
+  }
+
+  else if(S.sheet==='addMortgage'||S.sheet==='editMortgage'){
+    var d=S.sheetData;
+    var isEditM=S.sheet==='editMortgage';
+    title=(isEditM?'✏️ Edit':'🏦 Add')+' Mortgage';
+    var propOptionsM=S.properties.map(function(p){return p.name;}).concat(['430 Whitewood Ave (Personal)']);
+    var propSelM='<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="">— Select —</option>'+propOptionsM.map(function(n){return '<option value="'+esc(n)+'"'+(d.property===n?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></div>';
+    var monthlyInt=d.principal&&d.rate?Number(d.principal)*(Number(d.rate)/100/12):0;
+    var intPreview=d.principal&&d.rate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:4px"><div style="font-size:11px;color:#7c7a90;margin-bottom:6px">INTEREST ESTIMATE</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><div style="font-size:11px;color:#7c7a90">Monthly Interest</div><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(monthlyInt)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Annual Deductible*</div><div style="font-size:17px;font-weight:800;color:#4ade80">'+fmtS(monthlyInt*12)+'</div></div></div><div style="font-size:10px;color:#4a4860;margin-top:8px">*Rental properties only. Confirm with your CPA.</div></div>':'';
+    body='<div class="frow">'+propSelM+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp('Monthly Payment ($)','number',d.payment||'','payment','0.00')+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+(isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
+  }
+
   el.innerHTML='<div class="sheet-bg" onclick="closeSheet()"></div><div class="sheet-box"><div class="sheet-handle"></div>'+(title?'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+title+'</div>':'')+body+footer+'</div>';
   document.body.appendChild(el);
 }
@@ -1112,6 +1200,19 @@ function doSheetAddShift(){
 }
 function doSheetEditTenant(){var d=S.sheetData;closeSheet();saveTenant(Object.assign({},d,{rent:Number(d.rent)||0}));}
 function doSheetAddProp(){if(!S.sheetData.name){alert('Property name required');return;}var d=S.sheetData;closeSheet();saveProp(Object.assign({},d,{id:mkid()}));}
+
+function doSheetSaveAsset(){
+  var d=S.sheetData;
+  if(!d.name||!d.cost||!d.purchaseDate||!d.ccaClass){alert('Name, cost, purchase date and CCA class required');return;}
+  closeSheet();
+  saveCapitalAsset(Object.assign({},d,{id:d.id||mkid(),cost:Number(d.cost)||0}));
+}
+function doSheetSaveMortgage(){
+  var d=S.sheetData;
+  if(!d.property||!d.principal||!d.rate){alert('Property, balance and rate required');return;}
+  closeSheet();
+  saveMortgage(Object.assign({},d,{id:d.id||mkid()}));
+}
 function doSheetEditProp(){var d=S.sheetData;closeSheet();saveProp(d);}
 function doSheetAddUtil(){if(!S.sheetData.name||!S.sheetData.amount){alert('Name and amount required');return;}var d=S.sheetData;closeSheet();var utilDate=new Date(S.viewYear,S.viewMonth,1).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});var mk=S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0');saveUtil({id:mkid(),name:d.name,amount:Number(d.amount)||0,property:d.property||'',date:utilDate},mk);}
 function doSheetEditReceipt(){var r=Object.assign({},S.sheetData,{total:Number(S.sheetData.total)});closeSheet();saveReceipt(r);}
@@ -1679,6 +1780,63 @@ function _doRender(){
         +'</div>';}).join('')
       +'</div>'
       +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:16px 0">Always consult a tax professional. This is a guide only.</div>'
+
+      // ── Capital Assets ──────────────────────────────────────────
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;padding:0 4px">'
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px">CAPITAL ASSETS (CCA)</div>'
+      +'<button onclick="openSheet(\'addAsset\',{})" style="background:#fbbf2422;border:none;border-radius:10px;padding:6px 12px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Add Asset</button>'
+      +'</div>'
+      +(S.capitalAssets.length===0
+        ?'<div class="card" style="text-align:center;color:#7c7a90;padding:20px"><div style="font-size:32px;margin-bottom:8px">🏗️</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No assets yet</div><div style="font-size:12px">Track appliances, renovations and improvements for CCA depreciation</div></div>'
+        :'<div class="card" style="padding:0">'
+        +S.capitalAssets.map(function(a,i){
+          var cls=CCA_CLASSES.find(function(c){return c.cls===a.ccaClass;})||{rate:0};
+          var rate=a.ccaRate!=null?a.ccaRate:cls.rate;
+          var ucc=calcUCC(Number(a.cost),rate,a.purchaseDate);
+          var pct=a.cost>0?Math.round(ucc/a.cost*100):0;
+          return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.name)+'</div>'
+            +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(a.property||'—')+' · '+esc(a.ccaClass||'—')+' · '+esc(a.purchaseDate||'')+'</div>'
+            +'<div style="margin-top:6px;background:#1a1826;border-radius:99px;height:4px;overflow:hidden"><div style="height:4px;border-radius:99px;background:#fbbf24;width:'+pct+'%"></div></div>'
+            +'</div>'
+            +'<div style="text-align:right;flex-shrink:0">'
+            +'<div style="font-size:15px;font-weight:800;color:#fbbf24">'+fmtS(ucc)+'</div>'
+            +'<div style="font-size:10px;color:#7c7a90">of '+fmtS(a.cost)+'</div>'
+            +'<div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">'
+            +'<button onclick="openSheet(\'editAsset\',JSON.parse(JSON.stringify(S.capitalAssets.find(function(x){return x.id===\''+a.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'
+            +'<button onclick="delCapitalAsset(\''+a.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
+            +'</div></div></div>';
+        }).join('')
+        +'</div>')
+
+      // ── Mortgages ───────────────────────────────────────────────
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;padding:0 4px">'
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px">MORTGAGES</div>'
+      +'<button onclick="openSheet(\'addMortgage\',{})" style="background:#6366f122;border:none;border-radius:10px;padding:6px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Add Mortgage</button>'
+      +'</div>'
+      +(S.mortgages.length===0
+        ?'<div class="card" style="text-align:center;color:#7c7a90;padding:20px"><div style="font-size:32px;margin-bottom:8px">🏦</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No mortgages yet</div><div style="font-size:12px">Track balances and interest for tax deductions and net worth</div></div>'
+        :'<div class="card" style="padding:0">'
+        +S.mortgages.map(function(m,i){
+          var isPersonal=(m.property||'').indexOf('Personal')!==-1;
+          return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.property||'—')+'</div>'
+            +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(m.lender||'—')+' · '+m.rate+'% · '+fmtS(m.payment)+'/mo'+(m.renewalDate?' · Renews '+m.renewalDate:'')+'</div>'
+            +(isPersonal?'':'<div style="margin-top:4px">'+pill('~'+fmtS(m.annualInterest||0)+'/yr deductible','#4ade80')+'</div>')
+            +'</div>'
+            +'<div style="text-align:right;flex-shrink:0">'
+            +'<div style="font-size:15px;font-weight:800;color:#6366f1">'+fmtS(m.principal)+'</div>'
+            +'<div style="font-size:10px;color:#7c7a90">balance</div>'
+            +'<div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">'
+            +'<button onclick="openSheet(\'editMortgage\',JSON.parse(JSON.stringify(S.mortgages.find(function(x){return x.id===\''+m.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'
+            +'<button onclick="delMortgage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
+            +'</div></div></div>';
+        }).join('')
+        +'</div>')
+
+      +'<div style="height:16px"></div>'
       +'</div>';
   }
 

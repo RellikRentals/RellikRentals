@@ -145,7 +145,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', showShopping:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -414,10 +414,11 @@ function subscribeTodos(uid){
 function addShoppingItem(textArg){
   var text=textArg||(S.shoppingInput||'').trim();
   if(!text)return;
+  var qty=parseInt(S.shoppingQty)||1;
   var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
   if(!uid)return;
-  fsSet('users/'+uid+'/shopping/'+mkid(),{text:text,ordered:false,createdAt:new Date().toISOString()});
-  S.shoppingInput='';render();
+  fsSet('users/'+uid+'/shopping/'+mkid(),{text:text,qty:qty,ordered:false,createdAt:new Date().toISOString()});
+  S.shoppingInput='';S.shoppingQty='';render();
 }
 function toggleShoppingItem(id){
   var item=S.shoppingItems.find(function(x){return x.id===id;});
@@ -1828,7 +1829,7 @@ function _doRender(){
       var canEdit=!S.isTenant||S.isMaintenance||S.isPropertyManager;
       c='<div class="top-bar"><button onclick="S.showShopping=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div style="font-size:18px;font-weight:800;flex:1;margin-left:8px">🛒 Shopping List</div></div>'
         +'<div style="padding:0 16px">'
-        +(canEdit?'<div style="display:flex;gap:8px;margin-bottom:16px"><input id="shopInput" placeholder="Add item..." value="'+esc(S.shoppingInput||'')+'" oninput="S.shoppingInput=this.value" onkeydown="if(event.key===\'Enter\')addShoppingItem()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 14px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px"/><button onclick="addShoppingItem()" style="background:#6366f1;border:none;border-radius:12px;padding:10px 16px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button></div>':'')
+        +(canEdit?'<div style="display:flex;gap:8px;margin-bottom:16px"><input placeholder="Qty" value="'+esc(S.shoppingQty||'')+'" oninput="S.shoppingQty=this.value" onkeydown="if(event.key===\'Enter\')document.getElementById(\'shopInput\').focus()" style="width:56px;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 10px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px;text-align:center"/><input id="shopInput" placeholder="Add item..." value="'+esc(S.shoppingInput||'')+'" oninput="S.shoppingInput=this.value" onkeydown="if(event.key===\'Enter\')addShoppingItem()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 14px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px"/><button onclick="addShoppingItem()" style="background:#6366f1;border:none;border-radius:12px;padding:10px 16px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button></div>':'')
         +'<div class="card" style="padding:0">'
         +(S.shoppingItems.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">No items yet</div>'
           :S.shoppingItems.map(function(item){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2e2c3d">'

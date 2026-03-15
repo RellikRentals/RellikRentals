@@ -732,7 +732,7 @@ function sendRentReminder(id){
   if(!t.email){alert('No email on file for '+t.name);return;}
   var month=MONTHS[new Date().getMonth()];
   var year=String(new Date().getFullYear());
-  emailjs.send(EJS_SERVICE,'template_qdas9cp',{
+  emailjs.send(EJS_SERVICE,'template_nx9bypa',{
     to_email:t.email,
     to_name:t.name,
     from_name:'RellikRentals',

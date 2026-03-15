@@ -1834,7 +1834,7 @@ function _doRender(){
         +(S.shoppingItems.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">No items yet</div>'
           :S.shoppingItems.map(function(item){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2e2c3d">'
             +'<div onclick="'+(canEdit?'toggleShoppingItem(\''+item.id+'\')':'')+'" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(item.ordered?'#4ade80':'#2e2c3d')+';background:'+(item.ordered?'#4ade80':'transparent')+';cursor:'+(canEdit?'pointer':'default')+';flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(item.ordered?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-            +'<span style="flex:1;font-size:14px;font-weight:600;'+(item.ordered?'text-decoration:line-through;color:#7c7a90':'color:#f0eef8')+'">'+esc(item.text)+'</span>'
+            +'<span style="flex:1;font-size:14px;font-weight:600;'+(item.ordered?'text-decoration:line-through;color:#7c7a90':'color:#f0eef8')+'">'+(item.qty&&item.qty>1?'<span style="color:#6366f1;margin-right:6px">'+item.qty+'×</span>':'')+esc(item.text)+'</span>'
             +(isLandlord?'<button onclick="delShoppingItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>':'')
             +'</div>';}).join(''))
         +'</div></div>';

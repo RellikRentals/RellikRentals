@@ -815,7 +815,6 @@ function sendRentReminder(id){
   .then(function(d){if(d.ok)alert('Reminder sent to '+t.name+'!');else alert('Could not send reminder: '+d.text);})
   .catch(function(e){alert('Could not send reminder: '+(e.message||'Unknown error'));});
 }
-}
 function togglePaid(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t)return;

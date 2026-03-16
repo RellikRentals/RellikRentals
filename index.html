@@ -23,7 +23,6 @@
 <link rel="manifest" href="manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#0f0f13;overscroll-behavior:none}
@@ -88,9 +87,9 @@ window.dispatchEvent(new Event('fbReady'));
 
 <script>
 var LANDLORD_EMAIL = "admin@rellik.ca";
-var EJS_SERVICE = "service_d2o0k95";
-var EJS_TEMPLATE = "template_13v5fan";
-var EJS_KEY = "wzVqsv-JCIH-EM3zs";
+var WORKER_URL = 'https://rellikrentals-api.rellikrental.workers.dev';
+var EJS_TEMPLATE = 'template_13v5fan';
+var EJS_REMINDER = 'template_nx9bypa';
 var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supplies","Landscaping","Cleaning","Business Meals","Other"];
 
@@ -593,11 +592,9 @@ function syncTenantReceiptMonth(t,month,year){
 // ── Email ──────────────────────────────────────────────────────────
 function sendEmail(t){
   if(!t.email)return;
-  if(t.emailReceipts===false)return; // Email receipts disabled for this tenant
-  try{
-    var month=MONTHS[new Date().getMonth()]; var year=String(new Date().getFullYear());
-    emailjs.send(EJS_SERVICE,EJS_TEMPLATE,{to_email:t.email,to_name:t.name,from_name:'RellikRentals',property:t.property||'',unit:t.unit||'',month_year:month+' '+year,amount:fmt(t.rent),receipt_num:'#'+year+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(t.id).slice(-3),due_date:t.dueDate||month+' 1, '+year,lease_end:t.lease||'—'},EJS_KEY);
-  }catch(e){console.warn('Email:',e);}
+  if(t.emailReceipts===false)return;
+  var month=MONTHS[new Date().getMonth()]; var year=String(new Date().getFullYear());
+  fetch(WORKER_URL+'/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({templateId:EJS_TEMPLATE,params:{to_email:t.email,to_name:t.name,from_name:'RellikRentals',property:t.property||'',unit:t.unit||'',month_year:month+' '+year,amount:fmt(t.rent),receipt_num:'#'+year+String(new Date().getMonth()+1).padStart(2,'0')+'-'+String(t.id).slice(-3),due_date:t.dueDate||month+' 1, '+year,lease_end:t.lease||'—'}})}).catch(function(e){console.warn('Email:',e);});
 }
 
 // ── PDF ────────────────────────────────────────────────────────────
@@ -813,20 +810,11 @@ function sendRentReminder(id){
   if(!t.email){alert('No email on file for '+t.name);return;}
   var month=MONTHS[new Date().getMonth()];
   var year=String(new Date().getFullYear());
-  emailjs.send(EJS_SERVICE,'template_nx9bypa',{
-    to_email:t.email,
-    to_name:t.name,
-    from_name:'RellikRentals',
-    property:t.property||'',
-    unit:t.unit||'',
-    month_year:month+' '+year,
-    amount:fmt(t.rent),
-    due_date:t.dueDate||month+' 1, '+year
-  },EJS_KEY).then(function(){
-    alert('Reminder sent to '+t.name+'!');
-  }).catch(function(e){
-    alert('Could not send reminder: '+(e.text||e.message||'Unknown error'));
-  });
+  fetch(WORKER_URL+'/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({templateId:EJS_REMINDER,params:{to_email:t.email,to_name:t.name,from_name:'RellikRentals',property:t.property||'',unit:t.unit||'',month_year:month+' '+year,amount:fmt(t.rent),due_date:t.dueDate||month+' 1, '+year}})})
+  .then(function(r){return r.json();})
+  .then(function(d){if(d.ok)alert('Reminder sent to '+t.name+'!');else alert('Could not send reminder: '+d.text);})
+  .catch(function(e){alert('Could not send reminder: '+(e.message||'Unknown error'));});
+}
 }
 function togglePaid(id){
   var t=S.tenants.find(function(x){return x.id===id;});

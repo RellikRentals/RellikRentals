@@ -272,7 +272,17 @@ function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 // ── Google Drive ───────────────────────────────────────────────────
 function gdriveAuth(silent){
   return new Promise(function(resolve,reject){
+    // Check memory first
     if(_gdriveToken){resolve(_gdriveToken);return;}
+    // Check localStorage — token may survive page reload
+    try{
+      var stored=JSON.parse(localStorage.getItem('gdrive_token')||'null');
+      if(stored&&stored.token&&stored.expiry&&Date.now()<stored.expiry){
+        _gdriveToken=stored.token;
+        resolve(_gdriveToken);
+        return;
+      }
+    }catch(e){}
     if(!window.google||!window.google.accounts){reject('GSI not loaded');return;}
     var client=google.accounts.oauth2.initTokenClient({
       client_id:GDRIVE_CLIENT_ID,
@@ -281,8 +291,10 @@ function gdriveAuth(silent){
       callback:function(resp){
         if(resp.error){reject(resp.error);return;}
         _gdriveToken=resp.access_token;
-        // Schedule token refresh before it expires (tokens last ~1hr)
-        setTimeout(function(){_gdriveToken=null;gdriveAuth(true).catch(function(){});},55*60*1000);
+        // Store in localStorage with 55min expiry
+        try{localStorage.setItem('gdrive_token',JSON.stringify({token:resp.access_token,expiry:Date.now()+55*60*1000}));}catch(e){}
+        // Schedule memory clear and silent refresh
+        setTimeout(function(){_gdriveToken=null;localStorage.removeItem('gdrive_token');gdriveAuth(true).catch(function(){});},55*60*1000);
         resolve(_gdriveToken);
       }
     });

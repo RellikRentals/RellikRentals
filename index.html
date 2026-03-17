@@ -23,6 +23,7 @@
 <link rel="manifest" href="manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#0f0f13;overscroll-behavior:none}
@@ -90,6 +91,9 @@ var LANDLORD_EMAIL = "admin@rellik.ca";
 var WORKER_URL = 'https://rellikrentals-api.rellikrental.workers.dev';
 var EJS_TEMPLATE = 'template_13v5fan';
 var EJS_REMINDER = 'template_nx9bypa';
+var GDRIVE_CLIENT_ID = '1024695943624-kldg6n148ptru6vhh847bjed30kg5v57.apps.googleusercontent.com';
+var GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+var _gdriveToken = null;
 var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supplies","Landscaping","Cleaning","Business Meals","Other"];
 
@@ -247,6 +251,72 @@ function subscribeTenantPortal(email){
 
 function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
 function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
+
+// ── Google Drive ───────────────────────────────────────────────────
+function gdriveAuth(){
+  return new Promise(function(resolve,reject){
+    if(_gdriveToken){resolve(_gdriveToken);return;}
+    var client=google.accounts.oauth2.initTokenClient({
+      client_id:GDRIVE_CLIENT_ID,
+      scope:GDRIVE_SCOPE,
+      callback:function(resp){
+        if(resp.error){reject(resp.error);return;}
+        _gdriveToken=resp.access_token;
+        resolve(_gdriveToken);
+      }
+    });
+    client.requestAccessToken();
+  });
+}
+
+function gdriveGetOrCreateFolder(token,name,parentId){
+  var q=parentId
+    ?'name="'+name+'" and mimeType="application/vnd.google-apps.folder" and "'+parentId+'" in parents and trashed=false'
+    :'name="'+name+'" and mimeType="application/vnd.google-apps.folder" and "root" in parents and trashed=false';
+  return fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)',{
+    headers:{Authorization:'Bearer '+token}
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.files&&data.files.length>0)return data.files[0].id;
+    return fetch('https://www.googleapis.com/drive/v3/files',{
+      method:'POST',
+      headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+      body:JSON.stringify({name:name,mimeType:'application/vnd.google-apps.folder',parents:parentId?[parentId]:[]})
+    }).then(function(r){return r.json();}).then(function(f){return f.id;});
+  });
+}
+
+function gdriveUploadReceipt(file,filename,date){
+  return gdriveAuth().then(function(token){
+    var d=new Date(date||Date.now());
+    var year=String(d.getFullYear());
+    var monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var monthFolder=String(d.getMonth()+1).padStart(2,'0')+'-'+monthNames[d.getMonth()];
+    return gdriveGetOrCreateFolder(token,'RellikRentals',null)
+      .then(function(rootId){return gdriveGetOrCreateFolder(token,year,rootId);})
+      .then(function(yearId){return gdriveGetOrCreateFolder(token,monthFolder,yearId);})
+      .then(function(monthId){
+        var meta=JSON.stringify({name:filename,parents:[monthId]});
+        var form=new FormData();
+        form.append('metadata',new Blob([meta],{type:'application/json'}));
+        form.append('file',file);
+        return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
+          method:'POST',
+          headers:{Authorization:'Bearer '+token},
+          body:form
+        });
+      }).then(function(r){return r.json();});
+  });
+}
+
+function makeReceiptFilename(vendor,total,category,date){
+  var d=new Date(date||Date.now());
+  var mm=String(d.getMonth()+1).padStart(2,'0');
+  var dd=String(d.getDate()).padStart(2,'0');
+  var yy=String(d.getFullYear()).slice(-2);
+  var amt=Number(total).toFixed(2);
+  var cat=(category||'Other').replace(/[^a-zA-Z0-9]/g,'');
+  return mm+'-'+dd+'-'+yy+'-$'+amt+'-'+cat+'.jpg';
+}
 
 // ── Capital Assets ────────────────────────────────────────────────
 var CCA_CLASSES=[
@@ -933,19 +1003,26 @@ function handleFileScan(file){
   reader.onload=function(){
     var base64=reader.result.split(',')[1];
     var previewUrl=URL.createObjectURL(file);
-    fetch('https://rellikrentals-api.rellikrental.workers.dev/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of ['+CATS.map(function(c){return '"'+c+'"';}).join(',')+'"]","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
+    fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
     .then(function(r){return r.json();})
     .then(function(data){
-      var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/`{3}json|`{3}/g,'').trim();
+      var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
       var result=JSON.parse(txt);
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       S.receipts.unshift(Object.assign({},r));render();
       saveReceipt(r);
+      var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
+      gdriveUploadReceipt(file,fname,r.date)
+        .then(function(driveFile){
+          console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);
+        })
+        .catch(function(e){console.warn('Drive upload skipped:',e);});
     })
     .catch(function(){S.scanError="Couldn't read receipt — try a clearer photo.";})
     .finally(function(){S.scanning=false;render();});
   };
   reader.readAsDataURL(file);
+}
 }
 
 // ── Sheet ──────────────────────────────────────────────────────────
@@ -1989,6 +2066,11 @@ function _doRender(){
       +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.2.5</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">INTEGRATIONS</div>'
+      +'<div class="card" style="display:flex;align-items:center;justify-content:space-between">'
+      +'<div><div style="font-size:14px;font-weight:700">📁 Google Drive</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">Auto-save named receipts to Drive</div></div>'
+      +(_gdriveToken?'<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Connected</div>':'<button onclick="gdriveAuth().then(function(){render();}).catch(function(e){alert(\'Drive connection failed: \'+e);})" style="background:#4ade8022;border:none;border-radius:10px;padding:8px 14px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Connect</button>')
       +'</div>'
       +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
       +'</div>';

@@ -94,6 +94,7 @@ var EJS_REMINDER = 'template_nx9bypa';
 var GDRIVE_CLIENT_ID = '1024695943624-kldg6n148ptru6vhh847bjed30kg5v57.apps.googleusercontent.com';
 var GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 var _gdriveToken = null;
+var _pendingScanFile = null;
 var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supplies","Landscaping","Cleaning","Business Meals","Other"];
 
@@ -285,17 +286,21 @@ function gdriveGetOrCreateFolder(token,name,parentId){
   });
 }
 
-function gdriveUploadReceipt(file,filename,date){
+function gdriveUploadReceipt(file,filename,date,property,expType){
   return gdriveAuth().then(function(token){
     var d=new Date(date||Date.now());
     var year=String(d.getFullYear());
     var monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
     var monthFolder=String(d.getMonth()+1).padStart(2,'0')+'-'+monthNames[d.getMonth()];
+    var propFolder=(property&&property!=='all')?property:'General';
+    var typeFolder=(expType==='capital')?'Capital':'Operating';
     return gdriveGetOrCreateFolder(token,'RellikRentals',null)
       .then(function(rootId){return gdriveGetOrCreateFolder(token,year,rootId);})
       .then(function(yearId){return gdriveGetOrCreateFolder(token,monthFolder,yearId);})
-      .then(function(monthId){
-        var meta=JSON.stringify({name:filename,parents:[monthId]});
+      .then(function(monthId){return gdriveGetOrCreateFolder(token,propFolder,monthId);})
+      .then(function(propId){return gdriveGetOrCreateFolder(token,typeFolder,propId);})
+      .then(function(typeId){
+        var meta=JSON.stringify({name:filename,parents:[typeId]});
         var form=new FormData();
         form.append('metadata',new Blob([meta],{type:'application/json'}));
         form.append('file',file);
@@ -1003,20 +1008,14 @@ function handleFileScan(file){
   reader.onload=function(){
     var base64=reader.result.split(',')[1];
     var previewUrl=URL.createObjectURL(file);
-    fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]})})
+    fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:'Analyze this receipt. Respond ONLY with JSON, no markdown:\n{"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"}\nIf not a receipt set total to 0.'}]}]}))
     .then(function(r){return r.json();})
     .then(function(data){
       var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
       var result=JSON.parse(txt);
-      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
-      S.receipts.unshift(Object.assign({},r));render();
-      saveReceipt(r);
-      var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
-      gdriveUploadReceipt(file,fname,r.date)
-        .then(function(driveFile){
-          console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);
-        })
-        .catch(function(e){console.warn('Drive upload skipped:',e);});
+      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
+      _pendingScanFile=file;
+      openSheet('confirmScan',Object.assign({},r));
     })
     .catch(function(){S.scanError="Couldn't read receipt — try a clearer photo.";})
     .finally(function(){S.scanning=false;render();});
@@ -1024,6 +1023,19 @@ function handleFileScan(file){
   reader.readAsDataURL(file);
 }
 
+function doConfirmScan(){
+  var r=Object.assign({},S.sheetData,{id:mkid()});
+  closeSheet();
+  S.receipts.unshift(Object.assign({},r));render();
+  saveReceipt(r);
+  if(_pendingScanFile&&_gdriveToken){
+    var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
+    gdriveUploadReceipt(_pendingScanFile,fname,r.date,r.property,r.expType)
+      .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);})
+      .catch(function(e){console.warn('Drive upload skipped:',e);});
+  }
+  _pendingScanFile=null;
+}
 // ── Sheet ──────────────────────────────────────────────────────────
 function openSheet(name,data){S.sheet=name;S.sheetData=data||{};S.pdfsDone=false;if(name==='receiptGen')S.selectedForReceipt=[];renderSheet();}
 function closeSheet(){S.sheet=null;S.sheetData={};document.querySelectorAll('.sheet-overlay').forEach(function(e){e.remove();});}
@@ -1214,6 +1226,21 @@ function renderSheet(){
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetAddShift()">Log Hours</button></div>';
   }
 
+
+
+  else if(S.sheet==='confirmScan'){
+    var d=S.sheetData;
+    title='🧾 Confirm Receipt';
+    var propSel='<div><label>Property</label><select onchange="S.sheetData.property=this.value;renderSheet()"><option value="all"'+(d.property==='all'?' selected':'')+'>All Properties</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>';
+    var previewHtml=d.previewUrl?'<div style="text-align:center;margin-bottom:4px"><img src="'+d.previewUrl+'" style="max-width:100%;max-height:160px;border-radius:12px;object-fit:cover"/></div>':'';
+    body='<div class="frow">'+previewHtml
+      +'<div style="background:#22202f;border-radius:12px;padding:12px;margin-bottom:4px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div style="font-size:11px;color:#7c7a90">Vendor</div><div style="font-weight:700">'+esc(d.vendor)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Total</div><div style="font-weight:700;color:#f87171">$'+Number(d.total).toFixed(2)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Date</div><div style="font-weight:700">'+esc(d.date)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Category</div><div style="font-weight:700">'+esc(d.category)+'</div></div></div></div>'
+      +propSel
+      +'<div><label>Type</label><div style="display:flex;gap:8px;margin-top:6px"><button onclick="S.sheetData.expType=\'operating\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+((d.expType||'operating')==='operating'?'#6366f1':'#2e2c3d')+';background:'+((d.expType||'operating')==='operating'?'#6366f122':'transparent')+';color:'+((d.expType||'operating')==='operating'?'#6366f1':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Operating</button><button onclick="S.sheetData.expType=\'capital\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+(d.expType==='capital'?'#fbbf24':'#2e2c3d')+';background:'+(d.expType==='capital'?'#fbbf2422':'transparent')+';color:'+(d.expType==='capital'?'#fbbf24':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Capital</button></div></div>'
+      +(_gdriveToken?'<div style="background:#4ade8022;border-radius:10px;padding:8px 12px;font-size:11px;color:#4ade80;font-weight:700">📁 Will upload to: RellikRentals → '+(d.property&&d.property!=='all'?esc(d.property):'General')+' → '+(d.expType==='capital'?'Capital':'Operating')+'</div>':'')
+      +'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet();_pendingScanFile=null;">Discard</button><button class="btn btn-primary" onclick="doConfirmScan()">Save & Upload</button></div>';
+  }
 
   else if(S.sheet==='addAsset'||S.sheet==='editAsset'){
     var d=S.sheetData;

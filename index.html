@@ -1169,7 +1169,7 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
-      {v:'4.2.5',items:['Tax tab — dedicated nav tab with YTD summary and deduction checklist','Mark Paid and Remind buttons moved to tenant list cards — no need to open profile','Payments tab removed — cleaner navigation','Shopping list added to Expenses tab','Gen Receipts moved to Tax tab','Achieved non-zero probability of simulation hypothesis validity']},
+      {v:'4.3.0',items:['Tax tab — dedicated nav tab with YTD summary and deduction checklist','Mark Paid and Remind buttons moved to tenant list cards — no need to open profile','Payments tab removed — cleaner navigation','Shopping list added to Expenses tab','Gen Receipts moved to Tax tab','Achieved non-zero probability of simulation hypothesis validity']},
       {v:'4.2.3',items:['YTD rent now accurate — fixed collectionGroup pulling expense receipts into rent totals','Tenants without email (e.g. older tenants) now correctly included in YTD calculations','Mileage totals no longer show floating point decimals','Display preferences now persist across sessions','Preliminary evidence suggests the nature of reality may require further investigation']},
       {v:'4.2.2',items:['Budget and Owed stacked cleanly on worker cards — labeled, color coded, no overlap','Hourly rate now set via popup — no more mid-typing re-renders','Shift amounts fall back to current worker rate if logged without one']},
       {v:'4.2.1',items:['Maintenance budget system per worker — auto-reload, custom amount, credit day','Budget balance on payroll worker cards (green/red, goes negative)','Add funds manually + Reset to zero in Settings','Display preferences in Settings — customize how many receipts, mileage, utilities and leases show','Button sound feedback on key actions','Manager dashboard collapsible sections']},
@@ -1183,23 +1183,28 @@ function renderSheet(){
       {v:'2.9',items:['Secondary tenant name on profiles & receipts','Default to Tenant Login on load','Show/hide password toggle on login','Confirm password field on tenant sign up','Maintenance worker role with full request panel']},
       {v:'2.8',items:['Capital vs Operating receipt filter','Filename reference on receipt cards','Utilities collapse with View All','Locked utility monthly carry-over','YTD expenses calculation fix']},
       {v:'2.7',items:['Bulletin board for landlord & tenants','Tenant can post permission toggle','Tenant bulletin full page view','Ghost data cleanup on tenant deletion','YTD double counting fix']},
+      {v:'2.0.4',ghost:true,items:['Time is not linear. It is the mind\'s way of reading a book that was already written.']},
       {v:'2.6',items:['Version badge opens changelog','Footer moved to scroll area','Two row navigation bar','Documents in Quick Actions','Receipt notes field for tax time']},
       {v:'2.5',items:['Two row navigation bar','Documents moved to Quick Actions','Properties tab decluttered','Receipt notes field for tax time','Branded footer']},
       {v:'2.4',items:['AI receipt scanner via Cloudflare','API key secured server-side','Business Meals category added','Receipt property tagging','YTD financials on hero card']},
       {v:'2.3',items:['Maintenance requests system','Global maintenance tab','Real-time landlord & tenant sync','Collapsible tenant portal sections','Tenant PDF receipt downloads']},
+      {v:'1.7.3',ghost:true,items:['Time is not linear. You are not moving through it. It is moving through you.']},
       {v:'2.2',items:['Tenant login & signup separated','Landlord signup removed for security','Maintenance request error handling']},
       {v:'2.1',items:['Property filter on dashboard','Month picker for historical data','Professional PDF receipts with letterhead','Postal code on property profiles']},
+      {v:'1.4.1',ghost:true,items:['Time is not linear. It is a construct your mind uses to navigate a reality that exists all at once — past, present and future simultaneously present, experienced sequentially by design.']},
     ];
     body='<div style="padding-bottom:8px">'
       +versions.map(function(ver){
-        return '<div style="margin-bottom:20px">'
+        var isGhost=ver.ghost===true;
+        return '<div style="margin-bottom:20px'+(isGhost?';opacity:0.65':'')+'">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
-          +'<span style="background:#6366f122;color:#6366f1;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
-          +(ver.v==='4.2.5'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +'<span style="background:'+(isGhost?'#6b5fa022':'#6366f122')+';color:'+(isGhost?'#9b8fc0':'#6366f1')+';font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
+          +(ver.v==='4.3.0'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
           +'</div>'
-          +ver.items.map(function(item){var isTheory=item.indexOf('simulation')!==-1||item.indexOf('reality')!==-1||item.indexOf('artifacts')!==-1||item.indexOf('probability')!==-1;return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #2e2c3d"><span style="color:#6366f1;font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:'+(isTheory?'#ebe8f8':'#f0eef8')+'">'+item+'</span></div>';}).join('')
+          +ver.items.map(function(item){var isTheory=item.indexOf('simulation')!==-1||item.indexOf('reality')!==-1||item.indexOf('artifacts')!==-1||item.indexOf('probability')!==-1||item.indexOf('Time is not linear')!==-1;return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid '+(isGhost?'#2a2540':'#2e2c3d')+'"><span style="color:'+(isGhost?'#9b8fc0':'#6366f1')+';font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:'+(isTheory?(isGhost?'#c4b8e8':'#ebe8f8'):'#f0eef8')+'">'+item+'</span></div>';}).join('')
           +'</div>';
       }).join('')
+      +'</div>';
       +'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Close</button></div>';
   }
@@ -1679,7 +1684,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.5</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -1758,7 +1763,7 @@ function _doRender(){
       c='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17">'
         +'<div style="padding:24px 20px 8px;display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:12px;color:#7c7a90;font-weight:600;letter-spacing:1px">RELLIKRENTALS</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Quick Actions</div></div>'
-        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.5</span>'
+        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span>'
         +'</div>'
         +'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:20px">'
         +'<button onclick="playTap(\'camera\');document.getElementById(\'fi\').click()" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
@@ -1786,7 +1791,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
       return;
     }
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.5</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -2161,7 +2166,7 @@ function _doRender(){
       // About section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
       +'<div class="card" style="padding:0">'
-      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.2.5</span></div>'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.3.0</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
       +'</div>'

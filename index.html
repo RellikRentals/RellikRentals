@@ -270,20 +270,29 @@ function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
 function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 
 // ── Google Drive ───────────────────────────────────────────────────
-function gdriveAuth(){
+function gdriveAuth(silent){
   return new Promise(function(resolve,reject){
     if(_gdriveToken){resolve(_gdriveToken);return;}
+    if(!window.google||!window.google.accounts){reject('GSI not loaded');return;}
     var client=google.accounts.oauth2.initTokenClient({
       client_id:GDRIVE_CLIENT_ID,
       scope:GDRIVE_SCOPE,
+      prompt:silent?'none':'',
       callback:function(resp){
         if(resp.error){reject(resp.error);return;}
         _gdriveToken=resp.access_token;
+        // Schedule token refresh before it expires (tokens last ~1hr)
+        setTimeout(function(){_gdriveToken=null;gdriveAuth(true).catch(function(){});},55*60*1000);
         resolve(_gdriveToken);
       }
     });
     client.requestAccessToken();
   });
+}
+
+function gdriveAutoConnect(){
+  // Try silent auth — won't show popup, fails quietly if not possible
+  gdriveAuth(true).then(function(){render();}).catch(function(){});
 }
 
 function gdriveGetOrCreateFolder(token,name,parentId){
@@ -2318,6 +2327,7 @@ function initApp(){
     if(user){
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
         S.isTenant=false; subscribeLandlord(user.uid);
+        setTimeout(gdriveAutoConnect, 1500);
       }else{
         S.isTenant=true; subscribeTenantPortal(user.email.toLowerCase());
       }

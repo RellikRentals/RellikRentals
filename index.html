@@ -90,6 +90,22 @@ window.dispatchEvent(new Event('fbReady'));
 var LANDLORD_EMAIL = "admin@rellik.ca";
 var WORKER_URL = 'https://rellikrentals-api.rellikrental.workers.dev';
 var EJS_TEMPLATE = 'template_13v5fan';
+
+function playTap(type){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var o=ctx.createOscillator();
+    var g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    if(type==='camera'){o.frequency.setValueAtTime(520,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(300,ctx.currentTime+0.12);}
+    else if(type==='mileage'){o.frequency.setValueAtTime(440,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(260,ctx.currentTime+0.1);}
+    else if(type==='shopping'){o.frequency.setValueAtTime(600,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(400,ctx.currentTime+0.08);}
+    else{o.frequency.setValueAtTime(480,ctx.currentTime);o.frequency.exponentialRampToValueAtTime(320,ctx.currentTime+0.1);}
+    g.gain.setValueAtTime(0.18,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15);
+    o.start(ctx.currentTime);o.stop(ctx.currentTime+0.15);
+  }catch(e){}
+}
 var EJS_REMINDER = 'template_nx9bypa';
 var GDRIVE_CLIENT_ID = '1024695943624-kldg6n148ptru6vhh847bjed30kg5v57.apps.googleusercontent.com';
 var GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -149,7 +165,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -1717,6 +1733,39 @@ function _doRender(){
       +'<option value="all"'+(S.selectedProperty==='all'?' selected':'')+'>🏢 All Properties</option>'
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
+    // ── Quick Action Screen ────────────────────────────────────────
+    if(!S.isTenant && S.quickMode){
+      c='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17">'
+        +'<div style="padding:24px 20px 8px;display:flex;justify-content:space-between;align-items:center">'
+        +'<div><div style="font-size:12px;color:#7c7a90;font-weight:600;letter-spacing:1px">RELLIKRENTALS</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Quick Actions</div></div>'
+        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.5</span>'
+        +'</div>'
+        +'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:20px">'
+        +'<button onclick="playTap(\'camera\');document.getElementById(\'fi\').click()" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
+        +'<div style="font-size:48px">📷</div>'
+        +'<div style="font-size:22px;font-weight:800;color:#fff">Upload Receipt</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.7)">Scan & file to Drive</div>'
+        +'</button>'
+        +'<button onclick="playTap(\'mileage\');openSheet(\'addMileage\',{date:new Date().toISOString().slice(0,10),unit:\'km\'})" style="flex:1;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
+        +'<div style="font-size:48px">🚗</div>'
+        +'<div style="font-size:22px;font-weight:800;color:#fff">Log Mileage</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.7)">Record a trip</div>'
+        +'</button>'
+        +'<div style="display:flex;gap:16px;flex:1">'
+        +'<button onclick="playTap(\'shopping\');S.tab=\'receipts\';S.showShopping=true;render()" style="flex:1;background:linear-gradient(135deg,#10b981,#059669);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:100px">'
+        +'<div style="font-size:36px">🛒</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#fff">Shopping</div>'
+        +'</button>'
+        +'<button onclick="playTap(\'home\');S.quickMode=false;render()" style="flex:1;background:#1a1826;border:1px solid #2e2c3d;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:100px">'
+        +'<div style="font-size:36px">🏠</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#f0eef8">Dashboard</div>'
+        +'</button>'
+        +'</div>'
+        +'</div>'
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
+      return;
+    }
     c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.2.5</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
@@ -2140,7 +2189,7 @@ function _doRender(){
     c='<div class="top-bar"><div class="page-title">Expenses</div>'+(filteredReceipts.length>0?'<div style="font-size:16px;font-weight:800;color:#f87171">'+fmt(filteredTotal)+'</div>':'')+'</div>'
       +'<div style="padding:0 16px">'
       +'<div style="display:flex;gap:8px;margin-bottom:12px"><button onclick="S.receiptTypeFilter=\'all\';render()" style="'+btnStyle('all')+'">All</button><button onclick="S.receiptTypeFilter=\'operating\';render()" style="'+btnStyle('operating')+'">Operating</button><button onclick="S.receiptTypeFilter=\'capital\';render()" style="'+btnStyle('capital')+'">Capital</button></div>'
-      +'<div class="card" style="text-align:center;padding:28px 16px;cursor:pointer;border-style:dashed;border-color:'+(S.scanning?'#6366f1':'#2e2c3d')+'" onclick="document.getElementById(\'fi\').click()">'
+      +'<div class="card" style="text-align:center;padding:28px 16px;cursor:pointer;border-style:dashed;border-color:'+(S.scanning?'#6366f1':'#2e2c3d')+'" onclick="playTap(\'camera\');document.getElementById(\'fi\').click()">'
       +'<input type="file" id="fi" accept="image/*" style="display:none" onchange="handleFileScan(this.files[0])"/>'
       +(S.scanning?'<div style="font-size:28px;margin-bottom:8px">🔍</div><div style="font-weight:700;margin-bottom:4px">Scanning receipt…</div><div style="font-size:13px;color:#7c7a90">AI is reading your receipt</div><div style="margin-top:12px;display:flex;justify-content:center;gap:5px"><span class="dot" style="animation:pulse 1.2s 0s infinite"></span><span class="dot" style="animation:pulse 1.2s 0.4s infinite"></span><span class="dot" style="animation:pulse 1.2s 0.8s infinite"></span></div>'
         :'<div style="margin-bottom:10px">'+ICO.upload+'</div><div style="font-weight:700;margin-bottom:4px">Tap to upload receipt</div><div style="font-size:13px;color:#7c7a90">AI reads the total automatically</div>')

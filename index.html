@@ -1019,7 +1019,7 @@ function doGeneratePDFs(){
 
 function handleFileScan(file){
   if(!file||!file.type.startsWith('image/')){S.scanError='Please upload an image.';render();return;}
-  S.scanError='';S.scanning=true;render();
+  S.scanError='';S.scanning=true;S.quickMode=false;render();
   var reader=new FileReader();
   reader.onload=function(){
     var base64=reader.result.split(',')[1];

@@ -1054,15 +1054,26 @@ function handleFileScan(file){
 function doConfirmScan(){
   var r=Object.assign({},S.sheetData,{id:mkid()});
   closeSheet();
+  S.tab='receipts';
   S.receipts.unshift(Object.assign({},r));render();
   saveReceipt(r);
-  if(_pendingScanFile&&_gdriveToken){
+  if(_pendingScanFile){
     var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
-    gdriveUploadReceipt(_pendingScanFile,fname,r.date,r.property,r.expType)
-      .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);})
-      .catch(function(e){console.warn('Drive upload skipped:',e);});
+    var file=_pendingScanFile;
+    _pendingScanFile=null;
+    gdriveAuth(true)
+      .then(function(){return gdriveUploadReceipt(file,fname,r.date,r.property,r.expType);})
+      .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);render();})
+      .catch(function(e){
+        // Silent auth failed — try with popup
+        gdriveAuth(false)
+          .then(function(){return gdriveUploadReceipt(file,fname,r.date,r.property,r.expType);})
+          .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);render();})
+          .catch(function(e2){console.warn('Drive upload skipped:',e2);});
+      });
+  } else {
+    _pendingScanFile=null;
   }
-  _pendingScanFile=null;
 }
 // ── Sheet ──────────────────────────────────────────────────────────
 function openSheet(name,data){S.sheet=name;S.sheetData=data||{};S.pdfsDone=false;if(name==='receiptGen')S.selectedForReceipt=[];renderSheet();}

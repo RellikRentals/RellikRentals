@@ -1027,8 +1027,19 @@ function doConfirmScan(){
     _pendingScanFile=null;
     console.log('Starting Drive upload:',fname,'property:',r.property,'expType:',r.expType);
     gdriveUploadReceipt(file,fname,r.date,r.property,r.expType)
-      .then(function(data){console.log('Drive response:',JSON.stringify(data));})
-      .catch(function(e){console.warn('Drive upload failed:',e.message||e);});
+      .then(function(data){
+        console.log('Drive response:',JSON.stringify(data));
+        var msg=data&&data.fileId?'✅ Saved to Drive!':'⚠️ Drive returned: '+JSON.stringify(data);
+        var t=document.createElement('div');
+        t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1826;border:1px solid #2e2c3d;color:#f0eef8;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;z-index:9999;max-width:90vw;text-align:center;font-family:Nunito,sans-serif';
+        t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},6000);
+      })
+      .catch(function(e){
+        console.warn('Drive upload failed:',e.message||e);
+        var t=document.createElement('div');
+        t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#f8717122;border:1px solid #f87171;color:#f87171;padding:10px 16px;border-radius:12px;font-size:12px;font-weight:700;z-index:9999;max-width:90vw;text-align:center;font-family:Nunito,sans-serif';
+        t.textContent='❌ Drive error: '+(e.message||String(e));document.body.appendChild(t);setTimeout(function(){t.remove();},6000);
+      });
   } else {
     console.warn('No pending file — Drive upload skipped');
   }

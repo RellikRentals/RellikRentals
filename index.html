@@ -23,7 +23,6 @@
 <link rel="manifest" href="manifest.json"/>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:#0f0f13;overscroll-behavior:none}
@@ -107,9 +106,7 @@ function playTap(type){
   }catch(e){}
 }
 var EJS_REMINDER = 'template_nx9bypa';
-var GDRIVE_CLIENT_ID = '1024695943624-kldg6n148ptru6vhh847bjed30kg5v57.apps.googleusercontent.com';
-var GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-var _gdriveToken = null;
+// Google Drive uploads handled via Cloudflare Worker service account
 var _pendingScanFile = null;
 var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 var CATS = ["Repairs & Maintenance","Utilities","Insurance","Property Tax","Supplies","Landscaping","Cleaning","Business Meals","Other"];
@@ -270,84 +267,17 @@ function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
 function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 
 // ── Google Drive ───────────────────────────────────────────────────
-function gdriveAuth(silent){
-  return new Promise(function(resolve,reject){
-    // Check memory first
-    if(_gdriveToken){resolve(_gdriveToken);return;}
-    // Check localStorage — token may survive page reload
-    try{
-      var stored=JSON.parse(localStorage.getItem('gdrive_token')||'null');
-      if(stored&&stored.token&&stored.expiry&&Date.now()<stored.expiry){
-        _gdriveToken=stored.token;
-        resolve(_gdriveToken);
-        return;
-      }
-    }catch(e){}
-    if(!window.google||!window.google.accounts){reject('GSI not loaded');return;}
-    var client=google.accounts.oauth2.initTokenClient({
-      client_id:GDRIVE_CLIENT_ID,
-      scope:GDRIVE_SCOPE,
-      prompt:silent?'none':'',
-      callback:function(resp){
-        if(resp.error){reject(resp.error);return;}
-        _gdriveToken=resp.access_token;
-        // Store in localStorage with 55min expiry
-        try{localStorage.setItem('gdrive_token',JSON.stringify({token:resp.access_token,expiry:Date.now()+55*60*1000}));}catch(e){}
-        // Schedule memory clear and silent refresh
-        setTimeout(function(){_gdriveToken=null;localStorage.removeItem('gdrive_token');gdriveAuth(true).catch(function(){});},55*60*1000);
-        resolve(_gdriveToken);
-      }
-    });
-    client.requestAccessToken();
-  });
-}
-
-function gdriveAutoConnect(){
-  // Try silent auth — won't show popup, fails quietly if not possible
-  gdriveAuth(true).then(function(){render();}).catch(function(){});
-}
-
-function gdriveGetOrCreateFolder(token,name,parentId){
-  var q=parentId
-    ?'name="'+name+'" and mimeType="application/vnd.google-apps.folder" and "'+parentId+'" in parents and trashed=false'
-    :'name="'+name+'" and mimeType="application/vnd.google-apps.folder" and "root" in parents and trashed=false';
-  return fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)',{
-    headers:{Authorization:'Bearer '+token}
-  }).then(function(r){return r.json();}).then(function(data){
-    if(data.files&&data.files.length>0)return data.files[0].id;
-    return fetch('https://www.googleapis.com/drive/v3/files',{
-      method:'POST',
-      headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({name:name,mimeType:'application/vnd.google-apps.folder',parents:parentId?[parentId]:[]})
-    }).then(function(r){return r.json();}).then(function(f){return f.id;});
-  });
-}
-
-function gdriveUploadReceipt(file,filename,date,property,expType){
-  return gdriveAuth().then(function(token){
-    var d=new Date(date||Date.now());
-    var year=String(d.getFullYear());
-    var monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
-    var monthFolder=String(d.getMonth()+1).padStart(2,'0')+'-'+monthNames[d.getMonth()];
-    var propFolder=(property&&property!=='all')?property:'General';
-    var typeFolder=(expType==='capital')?'Capital':'Operating';
-    return gdriveGetOrCreateFolder(token,'RellikRentals',null)
-      .then(function(rootId){return gdriveGetOrCreateFolder(token,year,rootId);})
-      .then(function(yearId){return gdriveGetOrCreateFolder(token,monthFolder,yearId);})
-      .then(function(monthId){return gdriveGetOrCreateFolder(token,propFolder,monthId);})
-      .then(function(propId){return gdriveGetOrCreateFolder(token,typeFolder,propId);})
-      .then(function(typeId){
-        var meta=JSON.stringify({name:filename,parents:[typeId]});
-        var form=new FormData();
-        form.append('metadata',new Blob([meta],{type:'application/json'}));
-        form.append('file',file);
-        return fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{
-          method:'POST',
-          headers:{Authorization:'Bearer '+token},
-          body:form
-        });
-      }).then(function(r){return r.json();});
-  });
+function gdriveUploadReceipt(file, filename, date, property, expType){
+  var form = new FormData();
+  form.append('file', file, filename);
+  form.append('filename', filename);
+  form.append('date', date || new Date().toISOString().slice(0,10));
+  form.append('property', (property && property !== 'all') ? property : 'General');
+  form.append('expType', expType || 'operating');
+  return fetch(WORKER_URL + '/drive', {
+    method: 'POST',
+    body: form
+  }).then(function(r){ return r.json(); });
 }
 
 function makeReceiptFilename(vendor,total,category,date){
@@ -1073,19 +1003,11 @@ function doConfirmScan(){
     var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
     var file=_pendingScanFile;
     _pendingScanFile=null;
-    gdriveAuth(true)
-      .then(function(){return gdriveUploadReceipt(file,fname,r.date,r.property,r.expType);})
-      .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);render();})
-      .catch(function(e){
-        // Silent auth failed — try with popup
-        gdriveAuth(false)
-          .then(function(){return gdriveUploadReceipt(file,fname,r.date,r.property,r.expType);})
-          .then(function(driveFile){console.log('Uploaded to Drive:',fname,driveFile&&driveFile.id);render();})
-          .catch(function(e2){console.warn('Drive upload skipped:',e2);});
-      });
-  } else {
-    _pendingScanFile=null;
+    gdriveUploadReceipt(file,fname,r.date,r.property,r.expType)
+      .then(function(data){console.log('Uploaded to Drive:',fname,data&&data.fileId);})
+      .catch(function(e){console.warn('Drive upload failed:',e);});
   }
+  _pendingScanFile=null;
 }
 // ── Sheet ──────────────────────────────────────────────────────────
 function openSheet(name,data){S.sheet=name;S.sheetData=data||{};S.pdfsDone=false;if(name==='receiptGen')S.selectedForReceipt=[];renderSheet();}
@@ -1293,7 +1215,7 @@ function renderSheet(){
       +'<div style="background:#22202f;border-radius:12px;padding:12px;margin-bottom:4px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div style="font-size:11px;color:#7c7a90">Vendor</div><div style="font-weight:700">'+esc(d.vendor)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Total</div><div style="font-weight:700;color:#f87171">$'+Number(d.total).toFixed(2)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Date</div><div style="font-weight:700">'+esc(d.date)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Category</div><div style="font-weight:700">'+esc(d.category)+'</div></div></div></div>'
       +propSel
       +'<div><label>Type</label><div style="display:flex;gap:8px;margin-top:6px"><button onclick="S.sheetData.expType=\'operating\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+((d.expType||'operating')==='operating'?'#6366f1':'#2e2c3d')+';background:'+((d.expType||'operating')==='operating'?'#6366f122':'transparent')+';color:'+((d.expType||'operating')==='operating'?'#6366f1':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Operating</button><button onclick="S.sheetData.expType=\'capital\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+(d.expType==='capital'?'#fbbf24':'#2e2c3d')+';background:'+(d.expType==='capital'?'#fbbf2422':'transparent')+';color:'+(d.expType==='capital'?'#fbbf24':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Capital</button></div></div>'
-      +(_gdriveToken?'<div style="background:#4ade8022;border-radius:10px;padding:8px 12px;font-size:11px;color:#4ade80;font-weight:700">📁 Will upload to: RellikRentals → '+(d.property&&d.property!=='all'?esc(d.property):'General')+' → '+(d.expType==='capital'?'Capital':'Operating')+'</div>':'')
+      '<div style="background:#4ade8022;border-radius:10px;padding:8px 12px;font-size:11px;color:#4ade80;font-weight:700">📁 Will upload to: RellikRentals → '+(d.property&&d.property!=='all'?esc(d.property):'General')+' → '+(d.expType==='capital'?'Capital':'Operating')+'</div>'
       +'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet();_pendingScanFile=null;">Discard</button><button class="btn btn-primary" onclick="doConfirmScan()">Save & Upload</button></div>';
   }
@@ -2185,7 +2107,7 @@ function _doRender(){
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">INTEGRATIONS</div>'
       +'<div class="card" style="display:flex;align-items:center;justify-content:space-between">'
       +'<div><div style="font-size:14px;font-weight:700">📁 Google Drive</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">Auto-save named receipts to Drive</div></div>'
-      +(_gdriveToken?'<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Connected</div>':'<button onclick="gdriveAuth().then(function(){render();}).catch(function(e){alert(\'Drive connection failed: \'+e);})" style="background:#4ade8022;border:none;border-radius:10px;padding:8px 14px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Connect</button>')
+      '<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Active</div>'
       +'</div>'
       +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
       +'</div>';
@@ -2355,7 +2277,6 @@ function initApp(){
     if(user){
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
         S.isTenant=false; subscribeLandlord(user.uid);
-        setTimeout(gdriveAutoConnect, 1500);
       }else{
         S.isTenant=true; subscribeTenantPortal(user.email.toLowerCase());
       }

@@ -1020,13 +1020,17 @@ function doConfirmScan(){
   S.tab='receipts';
   S.receipts.unshift(Object.assign({},r));render();
   saveReceipt(r);
+  console.log('doConfirmScan — _pendingScanFile:',_pendingScanFile?'EXISTS':'NULL');
   if(_pendingScanFile){
     var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
     var file=_pendingScanFile;
     _pendingScanFile=null;
+    console.log('Starting Drive upload:',fname,'property:',r.property,'expType:',r.expType);
     gdriveUploadReceipt(file,fname,r.date,r.property,r.expType)
-      .then(function(data){console.log('Uploaded to Drive:',fname,data&&data.fileId);})
-      .catch(function(e){console.warn('Drive upload failed:',e);});
+      .then(function(data){console.log('Drive response:',JSON.stringify(data));})
+      .catch(function(e){console.warn('Drive upload failed:',e.message||e);});
+  } else {
+    console.warn('No pending file — Drive upload skipped');
   }
   _pendingScanFile=null;
 }

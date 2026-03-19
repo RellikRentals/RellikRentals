@@ -267,38 +267,17 @@ function fsSet(path,data){var f=fb();return f.setDoc(f.doc(f.db,path),data);}
 function fsDel(path){var f=fb();return f.deleteDoc(f.doc(f.db,path));}
 
 // ── Google Drive ───────────────────────────────────────────────────
-function compressImage(file, maxWidth, quality){
-  return new Promise(function(resolve){
-    var reader=new FileReader();
-    reader.onload=function(e){
-      var img=new Image();
-      img.onload=function(){
-        var canvas=document.createElement('canvas');
-        var w=img.width; var h=img.height;
-        if(w>maxWidth){h=Math.round(h*maxWidth/w);w=maxWidth;}
-        canvas.width=w;canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        canvas.toBlob(function(blob){resolve(blob);},'image/jpeg',quality);
-      };
-      img.src=e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 function gdriveUploadReceipt(file, filename, date, property, expType){
-  return compressImage(file, 1200, 0.75).then(function(compressed){
-    var form = new FormData();
-    form.append('file', compressed, filename);
-    form.append('filename', filename);
-    form.append('date', date || new Date().toISOString().slice(0,10));
-    form.append('property', (property && property !== 'all') ? property : 'General');
-    form.append('expType', expType || 'operating');
-    return fetch(WORKER_URL + '/drive', {
-      method: 'POST',
-      body: form
-    }).then(function(r){ return r.json(); });
-  });
+  var form = new FormData();
+  form.append('file', file, filename);
+  form.append('filename', filename);
+  form.append('date', date || new Date().toISOString().slice(0,10));
+  form.append('property', (property && property !== 'all') ? property : 'General');
+  form.append('expType', expType || 'operating');
+  return fetch(WORKER_URL + '/drive', {
+    method: 'POST',
+    body: form
+  }).then(function(r){ return r.json(); });
 }
 
 function makeReceiptFilename(vendor,total,category,date){

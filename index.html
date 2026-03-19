@@ -976,7 +976,7 @@ function handleFileScan(file){
     var base64=reader.result.split(',')[1];
     var previewUrl=URL.createObjectURL(file);
     var prompt='Analyze this receipt. Respond ONLY with JSON, no markdown: {"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"} If not a receipt set total to 0.';
-    var reqBody=JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:prompt}]}]});
+    var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:prompt}]}]});
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})
     .then(function(data){

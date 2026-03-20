@@ -970,7 +970,7 @@ function doGeneratePDFs(){
 
 function handleFileScan(file){
   if(!file||!file.type.startsWith('image/')){S.scanError='Please upload an image.';render();return;}
-  S.scanError='';S.scanning=true;S.quickMode=false;render();
+  S.scanError='';S.scanning=true;S.quickMode=false;S.tab='receipts';render();
   var reader=new FileReader();
   reader.onload=function(){
     var base64=reader.result.split(',')[1];
@@ -997,6 +997,7 @@ function doConfirmScan(){
   var r=Object.assign({},S.sheetData,{id:mkid()});
   closeSheet();
   S.tab='receipts';
+  S.quickMode=true;
   S.receipts.unshift(Object.assign({},r));render();
   saveReceipt(r);
   console.log('doConfirmScan — _pendingScanFile:',_pendingScanFile?'EXISTS':'NULL');

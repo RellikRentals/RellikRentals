@@ -301,6 +301,143 @@ var CCA_CLASSES=[
   {cls:'Class 43',rate:30,desc:'Electrical equipment'},
   {cls:'Other',rate:0,desc:'Custom rate'},
 ];
+function generateYearEndPDF(){
+  var doc=new window.jspdf.jsPDF();
+  var curY=new Date().getFullYear();
+  var pg=doc.internal.pageSize;
+  var W=pg.getWidth();
+  var y=20;
+  var lm=18; // left margin
+  var rm=W-18; // right margin
+
+  function line(){doc.setDrawColor(220,220,230);doc.line(lm,y,rm,y);y+=6;}
+  function section(title){
+    if(y>240){doc.addPage();y=20;}
+    doc.setFillColor(240,240,248);doc.rect(lm,y-4,rm-lm,10,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(80,80,120);
+    doc.text(title.toUpperCase(),lm+3,y+3);y+=12;
+    doc.setTextColor(30,30,30);
+  }
+  function row(label,value,color){
+    if(y>265){doc.addPage();y=20;}
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(60,60,60);
+    doc.text(label,lm+4,y);
+    doc.setFont('helvetica','bold');
+    if(color)doc.setTextColor(color[0],color[1],color[2]);else doc.setTextColor(30,30,30);
+    doc.text(value,rm,y,{align:'right'});
+    doc.setTextColor(30,30,30);
+    y+=7;
+  }
+  function subrow(label,value){
+    if(y>265){doc.addPage();y=20;}
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(100,100,120);
+    doc.text(label,lm+10,y);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);
+    doc.text(value,rm,y,{align:'right'});
+    doc.setTextColor(30,30,30);
+    y+=6;
+  }
+
+  // ── Header ──────────────────────────────────────────────────────
+  doc.setFillColor(30,28,50);doc.rect(0,0,W,28,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(255,255,255);
+  doc.text('RellikRentals — Year-End Summary',W/2,14,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(180,180,210);
+  doc.text('Tax Year '+curY+' — Brandon Ouellette',W/2,22,{align:'center'});
+  y=38;
+
+  // ── Income Summary ───────────────────────────────────────────────
+  var ytdRent=S.ytdRentReceipts.filter(function(r){return Number(r.year)===curY;}).reduce(function(a,r){return a+(Number(r.amount)||0);},0);
+  var ytdExp=S.receipts.filter(function(r){return (r.date||'').startsWith(String(curY));}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
+  var ytdUtil=S.ytdUtilities?S.ytdUtilities.filter(function(u){return (u.date||'').indexOf(String(curY))!==-1;}).reduce(function(a,u){return a+(Number(u.amount)||0);},0):0;
+  var totalKm=S.mileageLog.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+  var mileDeduction=totalKm<=5000?totalKm*0.73:(5000*0.73)+((totalKm-5000)*0.67);
+  var mortgageInterest=S.mortgages.filter(function(m){return (m.property||'').indexOf('Personal')===-1;}).reduce(function(a,m){return a+(Number(m.annualInterest)||0);},0);
+  var netIncome=ytdRent-ytdExp-ytdUtil-mileDeduction-mortgageInterest;
+
+  section('INCOME & EXPENSES');
+  row('Gross Rental Income','$'+ytdRent.toFixed(2),[46,222,128]);
+  row('Operating Expenses','-$'+ytdExp.toFixed(2),[248,113,113]);
+  row('Utilities','-$'+ytdUtil.toFixed(2),[251,146,60]);
+  row('Vehicle Mileage ('+Math.round(totalKm)+' km)','-$'+mileDeduction.toFixed(2),[251,191,36]);
+  row('Mortgage Interest (deductible)','-$'+mortgageInterest.toFixed(2),[99,102,241]);
+  y+=2;line();
+  doc.setFont('helvetica','bold');doc.setFontSize(12);
+  doc.setTextColor(30,30,30);doc.text('Net Rental Income',lm+4,y);
+  doc.setTextColor(netIncome>=0?46:248,netIncome>=0?222:113,netIncome>=0?128:113);
+  doc.text((netIncome>=0?'+':'')+' $'+Math.abs(netIncome).toFixed(2),rm,y,{align:'right'});
+  y+=12;
+
+  // ── Expenses by Category ─────────────────────────────────────────
+  var cats={};
+  S.receipts.filter(function(r){return (r.date||'').startsWith(String(curY));}).forEach(function(r){
+    var cat=r.category||'Other';
+    cats[cat]=(cats[cat]||0)+(Number(r.total)||0);
+  });
+  if(Object.keys(cats).length>0){
+    section('OPERATING EXPENSES BY CATEGORY');
+    Object.keys(cats).sort().forEach(function(cat){
+      row(cat,'$'+cats[cat].toFixed(2));
+    });
+    y+=2;
+  }
+
+  // ── Capital Assets ───────────────────────────────────────────────
+  if(S.capitalAssets.length>0){
+    section('CAPITAL COST ALLOWANCE (CCA)');
+    var totalCCA=0;
+    S.capitalAssets.forEach(function(a){
+      var cls=CCA_CLASSES.find(function(c){return c.cls===a.ccaClass;})||{rate:0};
+      var rate=a.ccaRate!=null?a.ccaRate:cls.rate;
+      var ucc=calcUCC(Number(a.cost),rate,a.purchaseDate);
+      var prevUCC=calcUCC(Number(a.cost),rate,new Date(new Date().setFullYear(curY-1,11,31)).toISOString().slice(0,10));
+      var ccaClaimed=Math.max(0,prevUCC-ucc);
+      totalCCA+=ccaClaimed;
+      row(a.name+' ('+a.ccaClass+')',' ');
+      subrow('Property: '+(a.property||'—')+'  |  Cost: $'+Number(a.cost).toFixed(2)+'  |  UCC: $'+ucc.toFixed(2),'CCA: $'+ccaClaimed.toFixed(2));
+    });
+    y+=2;line();
+    row('Total CCA Deduction','$'+totalCCA.toFixed(2),[251,191,36]);
+    y+=4;
+  }
+
+  // ── Mortgages ────────────────────────────────────────────────────
+  if(S.mortgages.length>0){
+    section('MORTGAGE INTEREST DEDUCTIONS');
+    S.mortgages.forEach(function(m){
+      var isPersonal=(m.property||'').indexOf('Personal')!==-1;
+      row(m.property||'—',isPersonal?'(personal — not deductible)':'$'+Number(m.annualInterest||0).toFixed(2)+'/yr',isPersonal?[150,150,150]:[99,102,241]);
+      subrow('Lender: '+(m.lender||'—')+'  |  Rate: '+m.rate+'%  |  Balance: $'+Number(m.principal||0).toFixed(2),'');
+    });
+    y+=4;
+  }
+
+  // ── Mileage ──────────────────────────────────────────────────────
+  if(S.mileageLog.length>0){
+    section('VEHICLE MILEAGE LOG');
+    var propKm={};
+    S.mileageLog.filter(function(m){return (m.date||'').startsWith(String(curY));}).forEach(function(m){
+      var p=m.property||'Other';
+      propKm[p]=(propKm[p]||0)+(Number(m.distance)||0);
+    });
+    Object.keys(propKm).forEach(function(p){
+      row(p,Math.round(propKm[p])+' km');
+    });
+    y+=2;line();
+    row('Total Deduction ('+Math.round(totalKm)+' km)','$'+mileDeduction.toFixed(2),[251,191,36]);
+    y+=4;
+  }
+
+  // ── Footer ───────────────────────────────────────────────────────
+  if(y>255){doc.addPage();y=20;}
+  y=Math.max(y,265);
+  doc.setDrawColor(200,200,220);doc.line(lm,y,rm,y);y+=6;
+  doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(150,150,170);
+  doc.text('Generated by RellikRentals on '+new Date().toLocaleDateString('en-CA')+' — For reference only. Consult a tax professional.',W/2,y,{align:'center'});
+
+  doc.save('RellikRentals_YearEnd_'+curY+'.pdf');
+}
+
 function calcUCC(cost,rate,purchaseDate){
   if(!cost||!purchaseDate)return Number(cost)||0;
   var yrs=new Date().getFullYear()-new Date(purchaseDate).getFullYear();
@@ -1873,7 +2010,7 @@ function _doRender(){
       {label:'Namecheap Domain & Email',desc:'rellik.ca infrastructure',icon:'💻'},
       {label:'Capital Improvements',desc:'Track separately — depreciate over time',icon:'🏗️'},
     ];
-    c='<div class="top-bar"><div class="page-title">Tax</div><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div>'
+    c='<div class="top-bar"><div class="page-title">Tax</div><div style="display:flex;gap:8px"><button onclick="generateYearEndPDF()" style="background:#4ade8022;border:none;border-radius:12px;padding:8px 12px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📄 Export PDF</button><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div></div>'
       +'<div style="padding:0 16px">'
       +'<div class="hero" style="margin-bottom:12px">'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px">YTD '+curY+' SUMMARY</div>'

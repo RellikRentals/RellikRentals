@@ -1132,6 +1132,8 @@ function handleFileScan(file){
 
 function doConfirmScan(){
   var r=Object.assign({},S.sheetData,{id:mkid()});
+  var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
+  r.fileName=fname;
   closeSheet();
   S.tab='receipts';
   S.quickMode=true;
@@ -1139,7 +1141,6 @@ function doConfirmScan(){
   saveReceipt(r);
   console.log('doConfirmScan — _pendingScanFile:',_pendingScanFile?'EXISTS':'NULL');
   if(_pendingScanFile){
-    var fname=makeReceiptFilename(r.vendor,r.total,r.category,r.date);
     var file=_pendingScanFile;
     _pendingScanFile=null;
     console.log('Starting Drive upload:',fname,'property:',r.property,'expType:',r.expType);

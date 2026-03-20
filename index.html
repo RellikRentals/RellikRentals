@@ -461,9 +461,11 @@ function saveMortgage(d){
   var principal=Number(d.principal)||0;
   var rate=Number(d.rate)||0;
   var payment=Number(d.payment)||0;
+  var freq=d.paymentFrequency||'monthly';
   var monthlyInterest=principal*(rate/100/12);
   var annualInterest=monthlyInterest*12;
-  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,monthlyInterest:monthlyInterest,annualInterest:annualInterest,updatedAt:new Date().toISOString()}));
+  var annualPayment=freq==='biweekly'?payment*26:payment*12;
+  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,updatedAt:new Date().toISOString()}));
 }
 function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.user.uid+'/mortgages/'+id);}
 
@@ -1399,9 +1401,17 @@ function renderSheet(){
     title=(isEditM?'✏️ Edit':'🏦 Add')+' Mortgage';
     var propOptionsM=S.properties.map(function(p){return p.name;}).concat(['430 Whitewood Ave (Personal)']);
     var propSelM='<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="">— Select —</option>'+propOptionsM.map(function(n){return '<option value="'+esc(n)+'"'+(d.property===n?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></div>';
+    var freq=d.paymentFrequency||'monthly';
+    var freqToggle='<div><label>Payment Frequency</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">'
+      +'<button onclick="S.sheetData.paymentFrequency=\'monthly\';renderSheet()" style="padding:10px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:'+(freq==='monthly'?'2px solid #6366f1':'1px solid #2e2c3d')+';background:'+(freq==='monthly'?'#6366f122':'#1a1826')+';color:'+(freq==='monthly'?'#6366f1':'#7c7a90')+'">Monthly</button>'
+      +'<button onclick="S.sheetData.paymentFrequency=\'biweekly\';renderSheet()" style="padding:10px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:pointer;border:'+(freq==='biweekly'?'2px solid #6366f1':'1px solid #2e2c3d')+';background:'+(freq==='biweekly'?'#6366f122':'#1a1826')+';color:'+(freq==='biweekly'?'#6366f1':'#7c7a90')+'">Bi-Weekly</button>'
+      +'</div></div>';
+    var payLabel=freq==='biweekly'?'Bi-Weekly Payment ($)':'Monthly Payment ($)';
+    var payHint=freq==='biweekly'?'26 payments/year':'12 payments/year';
     var monthlyInt=d.principal&&d.rate?Number(d.principal)*(Number(d.rate)/100/12):0;
-    var intPreview=d.principal&&d.rate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:4px"><div style="font-size:11px;color:#7c7a90;margin-bottom:6px">INTEREST ESTIMATE</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><div style="font-size:11px;color:#7c7a90">Monthly Interest</div><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(monthlyInt)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Annual Deductible*</div><div style="font-size:17px;font-weight:800;color:#4ade80">'+fmtS(monthlyInt*12)+'</div></div></div><div style="font-size:10px;color:#4a4860;margin-top:8px">*Rental properties only. Confirm with your CPA.</div></div>':'';
-    body='<div class="frow">'+propSelM+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp('Monthly Payment ($)','number',d.payment||'','payment','0.00')+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+'</div>';
+    var annualPay=freq==='biweekly'?(Number(d.payment)||0)*26:(Number(d.payment)||0)*12;
+    var intPreview=d.principal&&d.rate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:4px"><div style="font-size:11px;color:#7c7a90;margin-bottom:6px">INTEREST ESTIMATE</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><div style="font-size:11px;color:#7c7a90">Monthly Interest</div><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(monthlyInt)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Annual Deductible*</div><div style="font-size:17px;font-weight:800;color:#4ade80">'+fmtS(monthlyInt*12)+'</div></div></div>'+(d.payment?'<div style="border-top:1px solid #2e2c3d;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between"><div style="font-size:11px;color:#7c7a90">Annual Payments</div><div style="font-size:13px;font-weight:700;color:#6366f1">'+fmtS(annualPay)+'</div></div>':'')+'<div style="font-size:10px;color:#4a4860;margin-top:8px">*Rental properties only. Confirm with your CPA.</div></div>':'';
+    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+(isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
   }
 
@@ -2078,7 +2088,7 @@ function _doRender(){
           return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
             +'<div style="flex:1;min-width:0">'
             +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.property||'—')+'</div>'
-            +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(m.lender||'—')+' · '+m.rate+'% · '+fmtS(m.payment)+'/mo'+(m.renewalDate?' · Renews '+m.renewalDate:'')+'</div>'
+            +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(m.lender||'—')+' · '+m.rate+'% · '+fmtS(m.payment)+(m.paymentFrequency==='biweekly'?'/biweekly':'/mo')+(m.renewalDate?' · Renews '+m.renewalDate:'')+'</div>'
             +(isPersonal?'':'<div style="margin-top:4px">'+pill('~'+fmtS(m.annualInterest||0)+'/yr deductible','#4ade80')+'</div>')
             +'</div>'
             +'<div style="text-align:right;flex-shrink:0">'

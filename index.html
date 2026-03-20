@@ -466,7 +466,8 @@ function saveMortgage(d){
   var annualInterest=monthlyInterest*12;
   var annualPayment=freq==='biweekly'?payment*26:payment*12;
   var rateHistory=d.rateHistory||[];
-  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,rateHistory:rateHistory,updatedAt:new Date().toISOString()}));
+  var appraisedValue=Number(d.appraisedValue)||0;
+  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,rateHistory:rateHistory,appraisedValue:appraisedValue,updatedAt:new Date().toISOString()}));
 }
 function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.user.uid+'/mortgages/'+id);}
 
@@ -1422,7 +1423,7 @@ function renderSheet(){
         +(d._addingRate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:10px"><div style="font-size:11px;color:#7c7a90;margin-bottom:8px">NEW RATE ENTRY</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+inp('New Rate (%)','number',d._newRate||'','_newRate','e.g. 6.5')+inp('Effective Date','date',d._newRateDate||'','_newRateDate')+'</div><button onclick="doConfirmRateChange()" style="margin-top:8px;width:100%;background:#4ade8022;border:1px solid #4ade8033;border-radius:10px;padding:8px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Confirm Rate Change</button></div>':'')
         +'</div>';
     }
-    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+rateHistHtml+'</div>';
+    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Appraised Value ($)','number',d.appraisedValue||'','appraisedValue','Est. market value')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+rateHistHtml+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+( isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
   }
 
@@ -2124,7 +2125,9 @@ function _doRender(){
         +'</div>')
 
       +(function(){
-        var nwProp=S.properties.reduce(function(a,p){return a+(Number(p.appraisedValue)||0);},0);
+        var nwPropRental=S.properties.reduce(function(a,p){return a+(Number(p.appraisedValue)||0);},0);
+        var nwPropMortgage=S.mortgages.reduce(function(a,m){return a+(Number(m.appraisedValue)||0);},0);
+        var nwProp=nwPropRental+nwPropMortgage;
         var nwTFSA=Number(S.netWorthTFSA||0);
         var nwRRSP=Number(S.netWorthRRSP||0);
         var nwOther=Number(S.netWorthOther||0);
@@ -2138,14 +2141,15 @@ function _doRender(){
         var nwNet=nwAssets-nwMortgages;
         var nwCol=nwNet>=0?'#4ade80':'#f87171';
         var nwInp='width:100%;background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;box-sizing:border-box';
-        var propBreakdown=S.properties.filter(function(p){return Number(p.appraisedValue)>0;}).map(function(p){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:#7c7a90">'+esc(p.name)+'</span><span style="font-weight:700">'+fmtS(Number(p.appraisedValue))+'</span></div>';}).join('');
+        var propBreakdown=S.properties.filter(function(p){return Number(p.appraisedValue)>0;}).map(function(p){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:#7c7a90">'+esc(p.name)+'</span><span style="font-weight:700">'+fmtS(Number(p.appraisedValue))+'</span></div>';}).join('')
+          +S.mortgages.filter(function(m){return Number(m.appraisedValue)>0;}).map(function(m){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:#7c7a90">'+esc(m.property||m.lender||'—')+'</span><span style="font-weight:700">'+fmtS(Number(m.appraisedValue))+'</span></div>';}).join('');
         return '<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">NET WORTH SNAPSHOT</div>'
           +'<div class="card" style="padding:16px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
           +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">PROPERTY VALUES <span style="font-size:10px;color:#4a4860">(set in Properties tab)</span></div><div style="background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px">'+(nwProp>0?propBreakdown+'<div style="border-top:1px solid #2e2c3d;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between"><span style="font-size:12px;color:#7c7a90">Total</span><span style="font-size:14px;font-weight:800;color:#4ade80">'+fmtS(nwProp)+'</span></div>':'<div style="font-size:12px;color:#4a4860">No appraised values set — edit each property to add</div>')+'</div></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" oninput="S.netWorthTFSA=this.value;render()" style="'+nwInp+'"></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" oninput="S.netWorthRRSP=this.value;render()" style="'+nwInp+'"></div>'
-          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings, other..." value="'+(S.netWorthOther||'')+'" oninput="S.netWorthOther=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" onblur="S.netWorthTFSA=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" onblur="S.netWorthRRSP=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings, other..." value="'+(S.netWorthOther||'')+'" onblur="S.netWorthOther=this.value;render()" style="'+nwInp+'"></div>'
           +'</div>'
           +'<div style="border-top:1px solid #2e2c3d;padding-top:12px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'

@@ -162,7 +162,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'',
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -2090,6 +2090,42 @@ function _doRender(){
             +'</div></div></div>';
         }).join('')
         +'</div>')
+
+      +(function(){
+        var nwProp=Number(S.netWorthPropValue||0);
+        var nwTFSA=Number(S.netWorthTFSA||0);
+        var nwRRSP=Number(S.netWorthRRSP||0);
+        var nwOther=Number(S.netWorthOther||0);
+        var nwMortgages=S.mortgages.reduce(function(a,m){return a+(Number(m.principal)||0);},0);
+        var nwUCC=S.capitalAssets.reduce(function(a,asset){
+          var cls=CCA_CLASSES.find(function(c){return c.cls===asset.ccaClass;})||{rate:0};
+          var rate=asset.ccaRate!=null?asset.ccaRate:cls.rate;
+          return a+calcUCC(Number(asset.cost),rate,asset.purchaseDate);
+        },0);
+        var nwAssets=nwProp+nwTFSA+nwRRSP+nwOther+nwUCC;
+        var nwNet=nwAssets-nwMortgages;
+        var nwCol=nwNet>=0?'#4ade80':'#f87171';
+        var inp='width:100%;background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;box-sizing:border-box';
+        return '<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">NET WORTH SNAPSHOT</div>'
+          +'<div class="card" style="padding:16px">'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">PROPERTY VALUES</div><input type="number" placeholder="Est. market value" value="'+(S.netWorthPropValue||'')+'" oninput="S.netWorthPropValue=this.value;render()" style="'+inp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" oninput="S.netWorthTFSA=this.value;render()" style="'+inp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" oninput="S.netWorthRRSP=this.value;render()" style="'+inp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings..." value="'+(S.netWorthOther||'')+'" oninput="S.netWorthOther=this.value;render()" style="'+inp+'"></div>'
+          +'</div>'
+          +'<div style="border-top:1px solid #2e2c3d;padding-top:12px">'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
+          +'<div><div style="font-size:10px;color:#7c7a90">Total Assets</div><div style="font-size:16px;font-weight:800;color:#4ade80">'+fmtS(nwAssets)+'</div></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90">Total Liabilities</div><div style="font-size:16px;font-weight:800;color:#f87171">'+fmtS(nwMortgages)+'</div></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-top:4px">Capital Assets (UCC)</div><div style="font-size:13px;font-weight:700;color:#fbbf24;margin-top:4px">'+fmtS(nwUCC)+'</div></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-top:4px">Mortgages Outstanding</div><div style="font-size:13px;font-weight:700;color:#6366f1;margin-top:4px">-'+fmtS(nwMortgages)+'</div></div>'
+          +'</div>'
+          +'<div style="border-top:1px solid #2e2c3d;padding-top:10px;display:flex;justify-content:space-between;align-items:center">'
+          +'<div style="font-size:13px;color:rgba(255,255,255,0.7);font-weight:700">Est. Net Worth</div>'
+          +'<div style="font-size:26px;font-weight:800;color:'+nwCol+'">'+(nwNet>=0?'+':'')+fmtS(nwNet)+'</div>'
+          +'</div></div></div>';
+      }())
 
       +'<div style="height:16px"></div>'
       +'</div>';

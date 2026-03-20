@@ -1195,7 +1195,7 @@ function renderSheet(){
   else if(S.sheet==='addProperty'||S.sheet==='editProperty'){
     var d=S.sheetData; var isEdit=S.sheet==='editProperty';
     title=(isEdit?'✏️ Edit':'🏢 Add')+' Property';
-    body='<div class="frow">'+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+inp('Number of Units','number',d.units||'','units')+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
+    body='<div class="frow">'+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+inp('Number of Units','number',d.units||'','units')+inp('Appraised Value ($)','number',d.appraisedValue||'','appraisedValue','Est. market value')+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditProp()':'doSheetAddProp()')+'">'+(isEdit?'Save Changes':'Add Property')+'</button></div>';
   }
   else if(S.sheet==='addUtility'){
@@ -2124,7 +2124,7 @@ function _doRender(){
         +'</div>')
 
       +(function(){
-        var nwProp=Number(S.netWorthPropValue||0);
+        var nwProp=S.properties.reduce(function(a,p){return a+(Number(p.appraisedValue)||0);},0);
         var nwTFSA=Number(S.netWorthTFSA||0);
         var nwRRSP=Number(S.netWorthRRSP||0);
         var nwOther=Number(S.netWorthOther||0);
@@ -2137,14 +2137,15 @@ function _doRender(){
         var nwAssets=nwProp+nwTFSA+nwRRSP+nwOther+nwUCC;
         var nwNet=nwAssets-nwMortgages;
         var nwCol=nwNet>=0?'#4ade80':'#f87171';
-        var inp='width:100%;background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;box-sizing:border-box';
+        var nwInp='width:100%;background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;box-sizing:border-box';
+        var propBreakdown=S.properties.filter(function(p){return Number(p.appraisedValue)>0;}).map(function(p){return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:#7c7a90">'+esc(p.name)+'</span><span style="font-weight:700">'+fmtS(Number(p.appraisedValue))+'</span></div>';}).join('');
         return '<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">NET WORTH SNAPSHOT</div>'
           +'<div class="card" style="padding:16px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">PROPERTY VALUES</div><input type="number" placeholder="Est. market value" value="'+(S.netWorthPropValue||'')+'" oninput="S.netWorthPropValue=this.value;render()" style="'+inp+'"></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" oninput="S.netWorthTFSA=this.value;render()" style="'+inp+'"></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" oninput="S.netWorthRRSP=this.value;render()" style="'+inp+'"></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings..." value="'+(S.netWorthOther||'')+'" oninput="S.netWorthOther=this.value;render()" style="'+inp+'"></div>'
+          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">PROPERTY VALUES <span style="font-size:10px;color:#4a4860">(set in Properties tab)</span></div><div style="background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px">'+(nwProp>0?propBreakdown+'<div style="border-top:1px solid #2e2c3d;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between"><span style="font-size:12px;color:#7c7a90">Total</span><span style="font-size:14px;font-weight:800;color:#4ade80">'+fmtS(nwProp)+'</span></div>':'<div style="font-size:12px;color:#4a4860">No appraised values set — edit each property to add</div>')+'</div></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" oninput="S.netWorthTFSA=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" oninput="S.netWorthRRSP=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings, other..." value="'+(S.netWorthOther||'')+'" oninput="S.netWorthOther=this.value;render()" style="'+nwInp+'"></div>'
           +'</div>'
           +'<div style="border-top:1px solid #2e2c3d;padding-top:12px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
@@ -2480,7 +2481,7 @@ function _doRender(){
       c='<div class="top-bar"><div class="page-title">Properties</div><button onclick="openSheet(\'addProperty\',{})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:Nunito,sans-serif">'+ICO.plus+' Add</button></div>'
         +'<div style="padding:0 16px">'
         +(S.properties.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0 20px"><div style="font-size:40px;margin-bottom:10px">🏢</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No properties yet</div><div style="font-size:13px">Add a property profile to get started</div></div>'
-          :S.properties.map(function(p){var tc=S.tenants.filter(function(t){return t.property===p.name;}).length;var mr=S.tenants.filter(function(t){return t.property===p.name;}).reduce(function(a,t){return a+Number(t.rent);},0);return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px"><div style="flex:1"><div style="font-size:17px;font-weight:800">'+esc(p.name)+'</div><div style="font-size:13px;color:#7c7a90;margin-top:2px">'+esc(p.address||'')+(p.city?', '+esc(p.city):'')+'</div></div><div style="display:flex;gap:8px"><button onclick="openSheet(\'editProperty\',JSON.parse(JSON.stringify(S.properties.find(function(x){return x.id===\''+p.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="confirmDelProp(\''+p.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div><div style="display:flex;gap:8px;margin-bottom:12px">'+pill((p.units||'?')+' units','#6366f1')+' '+pill(tc+' tenants','#4ade80')+(mr>0?' '+pill(fmtS(mr)+'/mo','#fbbf24'):'')+'</div>'+(p.notes?'<div style="font-size:13px;color:#7c7a90;background:#22202f;border-radius:10px;padding:10px 12px">'+esc(p.notes)+'</div>':'')+'</div>';}).join(''))
+          :S.properties.map(function(p){var tc=S.tenants.filter(function(t){return t.property===p.name;}).length;var mr=S.tenants.filter(function(t){return t.property===p.name;}).reduce(function(a,t){return a+Number(t.rent);},0);return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px"><div style="flex:1"><div style="font-size:17px;font-weight:800">'+esc(p.name)+'</div><div style="font-size:13px;color:#7c7a90;margin-top:2px">'+esc(p.address||'')+(p.city?', '+esc(p.city):'')+'</div></div><div style="display:flex;gap:8px"><button onclick="openSheet(\'editProperty\',JSON.parse(JSON.stringify(S.properties.find(function(x){return x.id===\''+p.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="confirmDelProp(\''+p.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div><div style="display:flex;gap:8px;margin-bottom:12px">'+pill((p.units||'?')+' units','#6366f1')+' '+pill(tc+' tenants','#4ade80')+(mr>0?' '+pill(fmtS(mr)+'/mo','#fbbf24'):'')+'</div>'+(p.appraisedValue?'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 12px;background:#22202f;border-radius:10px"><div style="font-size:11px;color:#7c7a90">Appraised Value</div><div style="font-size:14px;font-weight:800;color:#4ade80">'+fmtS(Number(p.appraisedValue))+'</div></div>':'')+(p.notes?'<div style="font-size:13px;color:#7c7a90;background:#22202f;border-radius:10px;padding:10px 12px;margin-top:8px">'+esc(p.notes)+'</div>':'')+'</div>';}).join(''))
         +'</div>';
     }
   }

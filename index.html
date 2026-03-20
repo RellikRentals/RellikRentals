@@ -465,7 +465,8 @@ function saveMortgage(d){
   var monthlyInterest=principal*(rate/100/12);
   var annualInterest=monthlyInterest*12;
   var annualPayment=freq==='biweekly'?payment*26:payment*12;
-  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,updatedAt:new Date().toISOString()}));
+  var rateHistory=d.rateHistory||[];
+  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,rateHistory:rateHistory,updatedAt:new Date().toISOString()}));
 }
 function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.user.uid+'/mortgages/'+id);}
 
@@ -1411,8 +1412,18 @@ function renderSheet(){
     var monthlyInt=d.principal&&d.rate?Number(d.principal)*(Number(d.rate)/100/12):0;
     var annualPay=freq==='biweekly'?(Number(d.payment)||0)*26:(Number(d.payment)||0)*12;
     var intPreview=d.principal&&d.rate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:4px"><div style="font-size:11px;color:#7c7a90;margin-bottom:6px">INTEREST ESTIMATE</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div><div style="font-size:11px;color:#7c7a90">Monthly Interest</div><div style="font-size:17px;font-weight:800;color:#f87171">'+fmtS(monthlyInt)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Annual Deductible*</div><div style="font-size:17px;font-weight:800;color:#4ade80">'+fmtS(monthlyInt*12)+'</div></div></div>'+(d.payment?'<div style="border-top:1px solid #2e2c3d;margin-top:10px;padding-top:10px;display:flex;justify-content:space-between"><div style="font-size:11px;color:#7c7a90">Annual Payments</div><div style="font-size:13px;font-weight:700;color:#6366f1">'+fmtS(annualPay)+'</div></div>':'')+'<div style="font-size:10px;color:#4a4860;margin-top:8px">*Rental properties only. Confirm with your CPA.</div></div>':'';
-    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+(isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
+    var rateHistory=d.rateHistory||[];
+    var rateHistHtml='';
+    if(isEditM){
+      rateHistHtml='<div style="margin-top:4px"><div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin-bottom:8px">RATE HISTORY</div>'
+        +(rateHistory.length===0?'<div style="font-size:12px;color:#4a4860;margin-bottom:8px">No rate changes recorded yet.</div>':'')
+        +rateHistory.map(function(h){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+h.rate+'%</div><div style="font-size:11px;color:#7c7a90">Effective: '+h.effectiveDate+'</div></div><div style="font-size:12px;color:#7c7a90">~'+fmtS(Number(d.principal||0)*(Number(h.rate)/100/12))+'/mo</div></div>';}).join('')
+        +'<button onclick="S.sheetData._addingRate=true;S.sheetData._newRate=\'\';S.sheetData._newRateDate=new Date().toISOString().slice(0,10);renderSheet()" style="margin-top:10px;width:100%;background:#fbbf2422;border:1px solid #fbbf2433;border-radius:10px;padding:8px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Log Rate Change</button>'
+        +(d._addingRate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:10px"><div style="font-size:11px;color:#7c7a90;margin-bottom:8px">NEW RATE ENTRY</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+inp('New Rate (%)','number',d._newRate||'','_newRate','e.g. 6.5')+inp('Effective Date','date',d._newRateDate||'','_newRateDate')+'</div><button onclick="doConfirmRateChange()" style="margin-top:8px;width:100%;background:#4ade8022;border:1px solid #4ade8033;border-radius:10px;padding:8px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Confirm Rate Change</button></div>':'')
+        +'</div>';
+    }
+    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+rateHistHtml+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+( isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
   }
 
   el.innerHTML='<div class="sheet-bg" onclick="closeSheet()"></div><div class="sheet-box"><div class="sheet-handle"></div>'+(title?'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+title+'</div>':'')+body+footer+'</div>';
@@ -1438,6 +1449,17 @@ function doSheetSaveAsset(){
   if(!d.name||!d.cost||!d.purchaseDate||!d.ccaClass){alert('Name, cost, purchase date and CCA class required');return;}
   closeSheet();
   saveCapitalAsset(Object.assign({},d,{id:d.id||mkid(),cost:Number(d.cost)||0}));
+}
+function doConfirmRateChange(){
+  var d=S.sheetData;
+  if(!d._newRate||!d._newRateDate){alert('Rate and date required');return;}
+  var history=d.rateHistory||[];
+  history.push({rate:Number(d._newRate),effectiveDate:d._newRateDate,addedAt:new Date().toISOString()});
+  S.sheetData.rateHistory=history;
+  S.sheetData.rate=Number(d._newRate);
+  S.sheetData._addingRate=false;
+  S.sheetData._newRate='';
+  renderSheet();
 }
 function doSheetSaveMortgage(){
   var d=S.sheetData;

@@ -162,7 +162,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false,
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, deductibleValues:{}, deductibleExpanded:null, deductibleValues:{}, deductibleExpanded:null,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -479,7 +479,7 @@ function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.us
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false,canPropertyManager:t.canPropertyManager||false}));}
+  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false,canPropertyManager:t.canPropertyManager||false,assignedProperties:t.assignedProperties||[]}));}
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -1263,9 +1263,22 @@ function renderSheet(){
     var propSel=S.properties.length>0
       ?'<select onchange="S.sheetData.property=this.value"><option value="">— Select property —</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'<option value="other">Other…</option></select>'
       :'<input type="text" placeholder="Property Name" value="'+esc(d.property||'')+'" oninput="S.sheetData.property=this.value"/>';
+    var assignedPropsHtml=(d.canMaintenance||d.canPropertyManager)?
+      '<div style="border-top:1px solid #2e2c3d;padding-top:12px;margin-top:4px"><label style="color:#7c7a90;font-size:12px">ASSIGNED PROPERTIES</label>'
+      +S.properties.map(function(p){
+        var assigned=(d.assignedProperties||[]).indexOf(p.name)!==-1;
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2e2c3d;cursor:pointer" onclick="var ap=S.sheetData.assignedProperties||[];var idx=ap.indexOf(\''+p.name+'\');if(idx===-1)ap.push(\''+p.name+'\');else ap.splice(idx,1);S.sheetData.assignedProperties=ap;renderSheet()">'
+          +'<div style="width:20px;height:20px;border-radius:6px;border:2px solid '+(assigned?'#6366f1':'#2e2c3d')+';background:'+(assigned?'#6366f1':'transparent')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+          +(assigned?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')
+          +'</div>'
+          +'<span style="font-size:13px;font-weight:700">'+p.name+'</span>'
+          +'</div>';
+      }).join('')
+      +'</div>'
+      :'';
     body='<div class="frow">'+inp('Full Name','text',d.name||'','name')+inp('Unit','text',d.unit||'','unit')+'<div><label>Property</label>'+propSel+'</div>'+inp('Monthly Rent ($)','number',d.rent||'','rent')+inp('Email','email',d.email||'','email')+inp('Phone','tel',d.phone||'','phone')+inp('Lease End Date','date',d.lease||'','lease')
       +'<div style="border-top:1px solid #2e2c3d;padding-top:12px;margin-top:4px"><label style="color:#7c7a90;font-size:12px">SECONDARY TENANT (optional)</label><input type="text" placeholder="Full name" value="'+esc(d.name2||'')+'" oninput="S.sheetData.name2=this.value" style="margin-top:6px"/><div style="display:flex;align-items:center;gap:10px;margin-top:10px"><div onclick="S.sheetData.name2OnReceipt=!S.sheetData.name2OnReceipt;renderSheet()" style="width:48px;height:26px;border-radius:99px;background:'+(d.name2OnReceipt?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(d.name2OnReceipt?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div><span style="font-size:13px;color:#c0bdd8;cursor:pointer" onclick="S.sheetData.name2OnReceipt=!S.sheetData.name2OnReceipt;renderSheet()">Include on rent receipts</span></div></div>'
-      +'</div>';
+      +assignedPropsHtml+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditTenant()':'doSheetAddTenant()')+'">'+(isEdit?'Save Changes':'Add Tenant')+'</button></div>';
   }
   else if(S.sheet==='addProperty'||S.sheet==='editProperty'){
@@ -1673,7 +1686,7 @@ function _doRender(){
       var ls=leaseStatus(t.lease||'2099-01-01');
       var tog=function(key){return 'onclick="S.collapsed.'+key+'=!S.collapsed.'+key+';render()"';};
       var arr=function(key){return '<button '+tog(key)+' style="background:none;border:none;cursor:pointer;color:#7c7a90;font-size:18px;line-height:1;padding:0;font-family:Nunito,sans-serif">'+(S.collapsed[key]?'+':'−')+'</button>';};
-      ph='<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:4px">WELCOME BACK</div><div style="font-size:26px;font-weight:800;color:#fff">'+esc(t.name)+'</div><div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:4px">'+esc(t.unit)+' · '+esc(t.property)+'</div></div>'
+      ph='<div style="padding:0 16px 0">'        // Top hero — rent status front and centre        +'<div style="background:linear-gradient(135deg,'+(t.paid?'#1a3a2a,#1e4032':'#3a1a1a,#401e1e')+';border-radius:20px;padding:20px;margin-bottom:12px">'        +'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px">WELCOME BACK</div>'        +'<div style="font-size:24px;font-weight:800;color:#fff">'+esc(t.name)+'</div>'        +'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px">'+esc(t.unit)+' · '+esc(t.property)+'</div>'        +'<div style="margin-top:16px;display:flex;align-items:center;gap:12px">'        +'<div style="font-size:36px;font-weight:900;color:'+(t.paid?'#4ade80':'#f87171')+'">'+fmt(t.rent)+'</div>'        +'<div>'        +'<div style="font-size:15px;font-weight:800;color:'+(t.paid?'#4ade80':'#f87171')+'">'+(t.paid?'✓ Paid':'⏳ Unpaid')+'</div>'        +'<div style="font-size:11px;color:rgba(255,255,255,0.5)">Monthly Rent</div>'        +'</div></div>'        +'</div>'        // Quick action tiles        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'        +'<button onclick="S.collapsed.requests=false;render();document.querySelector(\'.request-section\')&&document.querySelector(\'.request-section\').scrollIntoView()" style="background:#6366f122;border:1px solid #6366f133;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'        +'<div style="font-size:24px;margin-bottom:8px">🔧</div>'        +'<div style="font-size:13px;font-weight:800;color:#f0eef8">Maintenance</div>'        +'<div style="font-size:11px;color:#7c7a90">'+S.myRequests.length+' request'+(S.myRequests.length===1?'':'s')+'</div>'        +'</button>'        +'<button onclick="S.tenantBulletinPage=true;render()" style="background:#4ade8022;border:1px solid #4ade8033;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'        +'<div style="font-size:24px;margin-bottom:8px">📋</div>'        +'<div style="font-size:13px;font-weight:800;color:#f0eef8">Bulletin</div>'        +'<div style="font-size:11px;color:#7c7a90">'+S.bulletinPosts.length+' post'+(S.bulletinPosts.length===1?'':'s')+'</div>'        +'</button>'        +(t.canMaintenance          ?'<button onclick="S.tenantMaintenancePage=true;render()" style="background:#f9731622;border:1px solid #f9731633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'            +'<div style="font-size:24px;margin-bottom:8px">⚙️</div>'            +'<div style="font-size:13px;font-weight:800;color:#f0eef8">My Panel</div>'            +'<div style="font-size:11px;color:#7c7a90">Maintenance</div>'            +'</button>'          :'')        +(t.canPropertyManager          ?'<button onclick="S.propertyManagerPage=true;render()" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'            +'<div style="font-size:24px;margin-bottom:8px">🏢</div>'            +'<div style="font-size:13px;font-weight:800;color:#f0eef8">Manager</div>'            +'<div style="font-size:11px;color:#7c7a90">Dashboard</div>'            +'</button>'          :'')        +'</div>'        +'</div>'
         // Current Status
         +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;'+(S.collapsed.status?'':'margin-bottom:12px')+'"><div style="font-size:14px;font-weight:700">Current Status</div>'+arr('status')+'</div>'
         +(!S.collapsed.status?
@@ -1830,7 +1843,8 @@ function _doRender(){
       var allReqsSorted=[].concat(S.myRequests).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
       var doneTodosM=S.todoItems.filter(function(t){return t.done;}).length;
       var totalTodosM=S.todoItems.length;
-      var mph='<div class="top-bar"><button onclick="S.tenantMaintenancePage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">🔧 Maintenance</div></div>'
+      var assignedProps=(S.tenantProfile&&S.tenantProfile.assignedProperties)||[];
+      var mph='<div class="top-bar"><button onclick="S.tenantMaintenancePage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">⚙️ My Panel</div></div>'        +'<div style="padding:0 16px">'        // Landing tiles        +'<div style="background:linear-gradient(135deg,#1e2a3a,#1e3040);border-radius:20px;padding:20px;margin-bottom:12px">'        +'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px">MAINTENANCE WORKER</div>'        +'<div style="font-size:22px;font-weight:800;color:#fff">'+(S.tenantProfile&&S.tenantProfile.name?S.tenantProfile.name.split(\' \')[0]:\'Worker\')+'</div>'        +(assignedProps.length>0?'<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px">'+assignedProps.join(\' · \')+\'</div>\':\'\')        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">'        +'<div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px"><div style="font-size:22px;font-weight:800;color:#f87171">'+allReqsSorted.filter(function(r){return r.status===\'New\';}).length+\'</div><div style="font-size:11px;color:rgba(255,255,255,0.5)">New Requests</div></div>\'        +\'<div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px"><div style="font-size:22px;font-weight:800;color:#fbbf24">\'+allReqsSorted.filter(function(r){return r.status===\'In Progress\';}).length+\'</div><div style="font-size:11px;color:rgba(255,255,255,0.5)">In Progress</div></div>\'        +\'</div></div>\'
         +'<div style="padding:0 16px">'
         // To-do list for maintenance worker — can check off only
         +'<div class="card" style="padding:12px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">✅ To-Do List'+(totalTodosM>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+doneTodosM+'/'+totalTodosM+' done</span>':'')+'</div></div>'
@@ -2162,14 +2176,55 @@ function _doRender(){
       +'<span style="color:#7c7a90;font-size:18px;font-weight:300">'+(S.deductionsCollapsed?'+':'−')+'</span>'
       +'</div>'
       +(!S.deductionsCollapsed?
-        '<div style="font-size:12px;color:#7c7a90;margin-bottom:12px;padding:0 4px">Items worth investigating with your accountant:</div>'
+        '<div style="font-size:12px;color:#7c7a90;margin-bottom:12px;padding:0 4px">Tap any item to add monthly cost and deductible %:</div>'
         +'<div class="card" style="padding:0">'
-        +DEDUCTIONS.map(function(d,i){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
-          +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">'+d.icon+'</div>'
-          +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+d.label+'</div><div style="font-size:11px;color:#7c7a90">'+d.desc+'</div></div>'
-          +'</div>';}).join('')
+        +DEDUCTIONS.map(function(d,i){
+          var key=d.label.replace(/[^a-zA-Z]/g,'');
+          var vals=S.deductibleValues[key]||{};
+          var expanded=S.deductibleExpanded===key;
+          var monthly=Number(vals.monthly)||0;
+          var pct=Number(vals.pct)||0;
+          var monthlyDed=monthly*(pct/100);
+          var annualDed=monthlyDed*12;
+          var inp2='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';
+          return '<div style="border-bottom:'+(i<DEDUCTIONS.length-1?'1px solid #2e2c3d':'none')+'">'
+            +'<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer" onclick="S.deductibleExpanded=S.deductibleExpanded===\''+key+'\'?null:\''+key+'\';render()">'
+            +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">'+d.icon+'</div>'
+            +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+d.label+'</div>'
+            +(monthlyDed>0?'<div style="font-size:11px;color:#4ade80;margin-top:2px">$'+monthlyDed.toFixed(2)+'/mo · $'+annualDed.toFixed(2)+'/yr deductible</div>':'<div style="font-size:11px;color:#7c7a90">'+d.desc+'</div>')
+            +'</div>'
+            +'<span style="color:#7c7a90;font-size:14px">'+(expanded?'−':'+')+'</span>'
+            +'</div>'
+            +(expanded?
+              '<div style="padding:0 16px 12px;background:#1a1826">'
+              +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">MONTHLY COST ($)</div>'
+              +'<input type="number" placeholder="0.00" value="'+(vals.monthly||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={}; S.deductibleValues[\''+key+'\'].monthly=this.value;render()" style="'+inp2+'"></div>'
+              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
+              +'<input type="number" placeholder="0" value="'+(vals.pct||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={}; S.deductibleValues[\''+key+'\'].pct=this.value;render()" style="'+inp2+'"></div>'
+              +'</div>'
+              +(monthlyDed>0?
+                '<div style="background:#22202f;border-radius:10px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+                +'<div><div style="font-size:10px;color:#7c7a90">Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+monthlyDed.toFixed(2)+'</div></div>'
+                +'<div><div style="font-size:10px;color:#7c7a90">Annual Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+annualDed.toFixed(2)+'</div></div>'
+                +'</div>'
+              :'')
+              +'</div>'
+            :'')
+            +'</div>';
+        }).join('')
         +'</div>'
-        +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:16px 0">Always consult a tax professional. This is a guide only.</div>'
+        +(function(){
+          var totalMonthly=DEDUCTIONS.reduce(function(a,d){var k=d.label.replace(/[^a-zA-Z]/g,'');var v=S.deductibleValues[k]||{};return a+(Number(v.monthly)||0)*(Number(v.pct)||0)/100;},0);
+          var totalAnnual=totalMonthly*12;
+          return totalMonthly>0
+            ?'<div style="background:#22202f;border-radius:14px;padding:14px;margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TOTAL MONTHLY</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+totalMonthly.toFixed(2)+'</div></div>'
+              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TOTAL ANNUAL</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+totalAnnual.toFixed(2)+'</div></div>'
+              +'</div>'
+            :'';
+        }())
+        +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:12px 0">Always consult a tax professional. This is a guide only.</div>'
       :'')
 
       // ── Capital Assets ──────────────────────────────────────────

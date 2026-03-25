@@ -162,8 +162,8 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false,
-  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[],
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false,
+  tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3,
@@ -196,6 +196,11 @@ function subscribeLandlord(uid){
   subscribeBudgets(uid);
   subscribeCapitalAssets(uid);
   subscribeMortgages(uid);
+  // Subscribe maintenance log
+  _unsubs.push(snap(q(col(db,'users/'+uid+'/maintenanceLog')),function(s){
+    S.maintenanceLog=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
   carryOverLockedUtils(uid);
   checkAndCreditBudgets(uid);
   // YTD — subscribe to all tenant rent receipts and all utility months for current year
@@ -655,6 +660,21 @@ function delShoppingItem(id){
   if(S.isTenant)return;
   fsDel('users/'+S.user.uid+'/shopping/'+id);
 }
+function doSaveMaintenanceLog(){
+  var d=S.sheetData;
+  closeSheet();
+  addMaintenanceLog(Object.assign({},d));
+}
+function addMaintenanceLog(entry){
+  var uid=S.user?S.user.uid:(S.tenantProfile&&S.tenantProfile.landlordUid);
+  if(!uid)return;
+  fsSet('users/'+uid+'/maintenanceLog/'+entry.id,entry);
+}
+function delMaintenanceLog(id){
+  var uid=S.user?S.user.uid:(S.tenantProfile&&S.tenantProfile.landlordUid);
+  if(!uid)return;
+  fsDel('users/'+uid+'/maintenanceLog/'+id);
+}
 function saveNetWorth(){
   if(!S.user)return;
   fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther});
@@ -676,7 +696,22 @@ function toggleTodo(id){
   if(!t)return;
   var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
   if(!uid)return;
-  fsSet('users/'+uid+'/todos/'+id,Object.assign({},t,{done:!t.done}));
+  var nowDone=!t.done;
+  fsSet('users/'+uid+'/todos/'+id,Object.assign({},t,{done:nowDone}));
+  // Auto-log to maintenance log when marked done
+  if(nowDone){
+    var who=S.user?S.user.email:(S.tenantProfile&&S.tenantProfile.email)||'Unknown';
+    addMaintenanceLog({
+      id:mkid(),
+      date:new Date().toISOString().slice(0,10),
+      task:t.text,
+      property:t.property||'',
+      completedBy:who,
+      cost:'',
+      notes:'',
+      createdAt:new Date().toISOString()
+    });
+  }
 }
 function doSaveMileage(){
   var d=S.sheetData;
@@ -1146,6 +1181,25 @@ function handleFileScan(file){
       var result=JSON.parse(clean);
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
+      // Check for duplicate
+      var dupCheck=S.receipts.find(function(x){
+        return x.vendor&&r.vendor&&x.vendor.toLowerCase()===r.vendor.toLowerCase()
+          && Math.abs(Number(x.total)-Number(r.total))<0.01
+          && x.date===r.date;
+      });
+      if(dupCheck){
+        S.scanning=false;
+        S._pendingDupReceipt=r;
+        S.scanError='';
+        render();
+        if(confirm('Possible duplicate: '+r.vendor+' $'+r.total+' on '+r.date+' already exists.\nScan anyway?')){
+          openSheet('confirmScan',Object.assign({},r));
+        } else {
+          _pendingScanFile=null;
+          S._pendingDupReceipt=null;
+        }
+        return;
+      }
       openSheet('confirmScan',Object.assign({},r));
     })
     .catch(function(e){var msg=e&&e.message?e.message:String(e);S.scanError='Scan error: '+msg.slice(0,80);console.error('Scanner error:',e);})
@@ -1282,6 +1336,8 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
+      {v:'4.4.0',items:['Net worth snapshot — property values, TFSA, RRSP, mortgages, capital assets all in one view','Year-end PDF export — one tap CPA-ready statement','Mortgage rate history — log rate changes with effective dates','Bi-weekly mortgage payment support','Appraised value per mortgage for net worth calculation','Todo list priority colours — Low, Medium, High','TFSA and RRSP balances now persist between sessions','Maintenance log — permanent record of property tasks','Duplicate receipt detection','Deduction checklist now collapsible','Identified potential artifacts consistent with simulated environment theory']},
+      {v:'4.3.1',items:['Receipt scanner fixed — special characters in vendor names no longer break scan','Firebase permission errors resolved — zero console errors','Made with ☕ and antimatter theory footer restored','Google Drive upload working via Shared Drive service account','Image compression removed — full quality receipts to scanner and Drive']},
       {v:'4.3.0',items:['Tax tab — dedicated nav tab with YTD summary and deduction checklist','Mark Paid and Remind buttons moved to tenant list cards — no need to open profile','Payments tab removed — cleaner navigation','Shopping list added to Expenses tab','Gen Receipts moved to Tax tab','Achieved non-zero probability of simulation hypothesis validity']},
       {v:'4.2.3',items:['YTD rent now accurate — fixed collectionGroup pulling expense receipts into rent totals','Tenants without email (e.g. older tenants) now correctly included in YTD calculations','Mileage totals no longer show floating point decimals','Display preferences now persist across sessions','Preliminary evidence suggests the nature of reality may require further investigation']},
       {v:'4.2.2',items:['Budget and Owed stacked cleanly on worker cards — labeled, color coded, no overlap','Hourly rate now set via popup — no more mid-typing re-renders','Shift amounts fall back to current worker rate if logged without one']},
@@ -1312,7 +1368,7 @@ function renderSheet(){
         return '<div style="margin-bottom:20px'+(isGhost?';opacity:0.65':'')+'">'
           +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
           +'<span style="background:'+(isGhost?'#6b5fa022':'#6366f122')+';color:'+(isGhost?'#9b8fc0':'#6366f1')+';font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px">v'+ver.v+'</span>'
-          +(ver.v==='4.3.0'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
+          +(ver.v==='4.4.0'?'<span style="background:#4ade8022;color:#4ade80;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px">CURRENT</span>':'')
           +'</div>'
           +ver.items.map(function(item){var isTheory=item.indexOf('simulation')!==-1||item.indexOf('reality')!==-1||item.indexOf('artifacts')!==-1||item.indexOf('probability')!==-1||item.indexOf('Time is not linear')!==-1;return '<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid '+(isGhost?'#2a2540':'#2e2c3d')+'"><span style="color:'+(isGhost?'#9b8fc0':'#6366f1')+';font-size:12px;margin-top:1px">•</span><span style="font-size:13px;color:'+(isTheory?(isGhost?'#c4b8e8':'#ebe8f8'):'#f0eef8')+'">'+item+'</span></div>';}).join('')
           +'</div>';
@@ -1418,6 +1474,17 @@ function renderSheet(){
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveAsset()">'+(isEditA?'Save Changes':'Add Asset')+'</button></div>';
   }
 
+  else if(S.sheet==='editMaintenanceLog'){
+    var d=S.sheetData;
+    title='✏️ Edit Log Entry';
+    var propOptionsML=['54 Cobalt St','52 Jamieson Ave','430 Whitewood Ave','Other',''];
+    var propSelML='<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="">Misc</option>'+propOptionsML.filter(function(p){return p;}).map(function(n){return '<option value="'+n+'"'+(d.property===n?' selected':'')+'>'+n+'</option>';}).join('')+'</select></div>';
+    body='<div class="frow">'+propSelML+'<div><label>Unit (optional)</label><input type="text" value="'+(d.unit||'')+'" oninput="S.sheetData.unit=this.value" placeholder="e.g. Unit 2"></div>'
+      +'<div><label>Cost of Supplies ($)</label><input type="number" value="'+(d.cost||'')+'" oninput="S.sheetData.cost=this.value" placeholder="0.00"></div>'
+      +'<div><label>Notes</label><input type="text" value="'+(d.notes||'')+'" oninput="S.sheetData.notes=this.value" placeholder="Additional details..."></div>'
+      +'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSaveMaintenanceLog()">Save</button></div>';
+  }
   else if(S.sheet==='addMortgage'||S.sheet==='editMortgage'){
     var d=S.sheetData;
     var isEditM=S.sheet==='editMortgage';
@@ -1826,7 +1893,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.0</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div style="padding:0 16px">'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -1905,7 +1972,7 @@ function _doRender(){
       c='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17">'
         +'<div style="padding:24px 20px 8px;display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:12px;color:#7c7a90;font-weight:600;letter-spacing:1px">RELLIKRENTALS</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Quick Actions</div></div>'
-        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span>'
+        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.0</span>'
         +'</div>'
         +'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:20px">'
         +'<button onclick="playTap(\'camera\');document.getElementById(\'fi\').click()" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
@@ -1933,7 +2000,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
       return;
     }
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.3.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -2065,7 +2132,17 @@ function _doRender(){
       {label:'Namecheap Domain & Email',desc:'rellik.ca infrastructure',icon:'💻'},
       {label:'Capital Improvements',desc:'Track separately — depreciate over time',icon:'🏗️'},
     ];
-    c='<div class="top-bar"><div class="page-title">Tax</div><div style="display:flex;gap:8px"><button onclick="generateYearEndPDF()" style="background:#4ade8022;border:none;border-radius:12px;padding:8px 12px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📄 Export PDF</button><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div></div>'
+    if(S.maintenanceLogPage){
+      var mlEntries=S.maintenanceLog||[];
+      c='<div class="top-bar"><button onclick="S.maintenanceLogPage=false;render()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;margin-right:8px;font-size:20px">&larr;</button><div class="page-title">Maintenance Log</div></div>'
+        +'<div style="padding:0 16px">'
+        +(mlEntries.length===0
+          ?'<div class="card" style="text-align:center;color:#7c7a90;padding:32px"><div style="font-size:36px;margin-bottom:8px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No entries yet</div><div style="font-size:12px">Added automatically when todos are marked done</div></div>'
+          :'<div class="card" style="padding:0">'+mlEntries.map(function(e,i){return '<div style="padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start">'+'<div style="flex:1;min-width:0">'+'<div style="font-size:13px;font-weight:700;color:#f0eef8">'+esc(e.task||'—')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(e.date||'')+(e.property?' · '+esc(e.property):'')+(e.unit?' · Unit '+esc(e.unit):'')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:1px">By: '+esc(e.completedBy||'—')+(e.cost?' · Supplies: $'+Number(e.cost).toFixed(2):'')+'</div>'+(e.notes?'<div style="font-size:11px;color:#4ade80;font-style:italic;margin-top:2px">'+esc(e.notes)+'</div>':'')+'</div>'+'<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">'+'<button onclick="openSheet(\'editMaintenanceLog\',JSON.parse(JSON.stringify(S.maintenanceLog.find(function(x){return x.id===\''+e.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'+'<button onclick="delMaintenanceLog(\''+e.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'+'</div>'+'</div></div>';}).join('')+'</div>')
+        +'<div style="height:16px"></div></div>';
+      return c;
+    }
+        c='<div class="top-bar"><div class="page-title">Tax</div><div style="display:flex;gap:8px"><button onclick="generateYearEndPDF()" style="background:#4ade8022;border:none;border-radius:12px;padding:8px 12px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📄 Export PDF</button><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div></div>'
       +'<div style="padding:0 16px">'
       +'<div class="hero" style="margin-bottom:12px">'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px">YTD '+curY+' SUMMARY</div>'
@@ -2080,15 +2157,20 @@ function _doRender(){
       +'<div style="font-size:22px;font-weight:800;color:'+(netIncomeT>=0?'#4ade80':'#f87171')+'">'+(netIncomeT>=0?'+':'')+fmtS(netIncomeT)+'</div>'
       +'</div>'
       +'</div>'
-      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:4px 0 8px;padding:0 4px">DEDUCTION CHECKLIST</div>'
-      +'<div style="font-size:12px;color:#7c7a90;margin-bottom:12px;padding:0 4px">Items worth investigating with your accountant:</div>'
-      +'<div class="card" style="padding:0">'
-      +DEDUCTIONS.map(function(d,i){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
-        +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">'+d.icon+'</div>'
-        +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+d.label+'</div><div style="font-size:11px;color:#7c7a90">'+d.desc+'</div></div>'
-        +'</div>';}).join('')
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px;padding:0 4px;cursor:pointer" onclick="S.deductionsCollapsed=!S.deductionsCollapsed;render()">'
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px">DEDUCTIBLES</div>'
+      +'<span style="color:#7c7a90;font-size:16px">'+(S.deductionsCollapsed?'+':'−')+'</span>'
       +'</div>'
-      +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:16px 0">Always consult a tax professional. This is a guide only.</div>'
+      +(!S.deductionsCollapsed?
+        '<div style="font-size:12px;color:#7c7a90;margin-bottom:12px;padding:0 4px">Items worth investigating with your accountant:</div>'
+        +'<div class="card" style="padding:0">'
+        +DEDUCTIONS.map(function(d,i){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
+          +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">'+d.icon+'</div>'
+          +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+d.label+'</div><div style="font-size:11px;color:#7c7a90">'+d.desc+'</div></div>'
+          +'</div>';}).join('')
+        +'</div>'
+        +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:16px 0">Always consult a tax professional. This is a guide only.</div>'
+      :'')
 
       // ── Capital Assets ──────────────────────────────────────────
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;padding:0 4px">'
@@ -2348,7 +2430,7 @@ function _doRender(){
       // About section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
       +'<div class="card" style="padding:0">'
-      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.3.0</span></div>'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.4.0</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
       +'</div>'

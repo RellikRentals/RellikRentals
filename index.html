@@ -162,7 +162,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'',
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false,
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -660,8 +660,11 @@ function addTodo(textArg){
   if(!text)return;
   var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
   if(!uid)return;
-  fsSet('users/'+uid+'/todos/'+mkid(),{text:text,done:false,createdAt:new Date().toISOString()});
+  var priority=S.todoPriority||'low';
+  fsSet('users/'+uid+'/todos/'+mkid(),{text:text,done:false,priority:priority,createdAt:new Date().toISOString()});
   S.todoInput='';
+  S.todoPriority='low';
+  S.showPriorityPicker=false;
   render();
 }
 function toggleTodo(id){
@@ -685,6 +688,19 @@ function delTodo(id){
 
 function subscribeCapitalAssets(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
+  // Load net worth settings
+  try{
+    var _f=fb();
+    _f.getDoc(_f.doc(_f.db,'users/'+uid+'/settings/netWorth')).then(function(nwDoc){
+      if(nwDoc&&nwDoc.exists&&nwDoc.exists()){
+        var nwd=nwDoc.data();
+        S.netWorthTFSA=nwd.tfsa||'';
+        S.netWorthRRSP=nwd.rrsp||'';
+        S.netWorthOther=nwd.other||'';
+        render();
+      }
+    }).catch(function(e){console.log('netWorth load:',e);});
+  }catch(e){console.log('netWorth load err:',e);}
   _unsubs.push(snap(q(col(db,'users/'+uid+'/capitalAssets')),function(s){
     S.capitalAssets=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(a.purchaseDate)-new Date(b.purchaseDate);});
     render();
@@ -1122,12 +1138,13 @@ function handleFileScan(file){
     .then(function(r){return r.json();})
     .then(function(data){
       var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
-      var result=JSON.parse(txt);
+      var clean=txt.replace(/[\u0000-\u001F\u007F-\u009F]/g,'').replace(/[^\x20-\x7E\xA0-\uFFFF]/g,'').trim();
+      var result=JSON.parse(clean);
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
       openSheet('confirmScan',Object.assign({},r));
     })
-    .catch(function(){S.scanError="Couldn't read receipt - try a clearer photo.";})
+    .catch(function(e){var msg=e&&e.message?e.message:String(e);S.scanError='Scan error: '+msg.slice(0,80);console.error('Scanner error:',e);})
     .finally(function(){S.scanning=false;render();});
   };
   reader.readAsDataURL(file);
@@ -1671,7 +1688,7 @@ function _doRender(){
           :S.todoItems.map(function(t){
             return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
               +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':t.priority==='high'?'color:#f87171;font-weight:700':t.priority==='medium'?'color:#fbbf24;font-weight:700':'color:#f0eef8')+'">'+esc(t.text)+'</span>'
               +'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>'
               +'</div>';
           }).join(''))
@@ -1750,7 +1767,7 @@ function _doRender(){
           :S.todoItems.map(function(t){
             return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
               +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+              +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':t.priority==='high'?'color:#f87171;font-weight:700':t.priority==='medium'?'color:#fbbf24;font-weight:700':'color:#f0eef8')+'">'+esc(t.text)+'</span>'
               +'</div>';
           }).join(''))
         +'</div>'
@@ -2147,9 +2164,9 @@ function _doRender(){
           +'<div class="card" style="padding:16px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
           +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">PROPERTY VALUES <span style="font-size:10px;color:#4a4860">(set in Properties tab)</span></div><div style="background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:8px">'+(nwProp>0?propBreakdown+'<div style="border-top:1px solid #2e2c3d;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between"><span style="font-size:12px;color:#7c7a90">Total</span><span style="font-size:14px;font-weight:800;color:#4ade80">'+fmtS(nwProp)+'</span></div>':'<div style="font-size:12px;color:#4a4860">No appraised values set — edit each property to add</div>')+'</div></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" onblur="S.netWorthTFSA=this.value;render()" style="'+nwInp+'"></div>'
-          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" onblur="S.netWorthRRSP=this.value;render()" style="'+nwInp+'"></div>'
-          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings, other..." value="'+(S.netWorthOther||'')+'" onblur="S.netWorthOther=this.value;render()" style="'+nwInp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TFSA BALANCE</div><input type="number" placeholder="TFSA" value="'+(S.netWorthTFSA||'')+'" onblur="S.netWorthTFSA=this.value;fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther});render()" style="'+nwInp+'"></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">RRSP BALANCE</div><input type="number" placeholder="RRSP" value="'+(S.netWorthRRSP||'')+'" onblur="S.netWorthRRSP=this.value;fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther});render()" style="'+nwInp+'"></div>'
+          +'<div style="grid-column:1/-1"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">OTHER ASSETS</div><input type="number" placeholder="Vehicles, savings, other..." value="'+(S.netWorthOther||'')+'" onblur="S.netWorthOther=this.value;fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther});render()" style="'+nwInp+'"></div>'
           +'</div>'
           +'<div style="border-top:1px solid #2e2c3d;padding-top:12px">'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'
@@ -2184,12 +2201,12 @@ function _doRender(){
       // To-Do Checklist
       +'<div class="card" style="padding:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">✅ To-Do List'+(totalTodos>0?' <span style="font-size:10px;color:#7c7a90;font-weight:400">'+doneTodos+'/'+totalTodos+' done</span>':'')+'</div></div>'
       +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':
-        '<div style="display:flex;gap:6px;margin-bottom:8px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0;font-size:12px;padding:6px 10px"/><button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:10px;padding:6px 12px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>')
+        '<div style="margin-bottom:8px">'+'<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0;font-size:12px;padding:6px 10px"/>'+'<button onclick="S.showPriorityPicker=!S.showPriorityPicker;render()" style="background:'+(S.todoPriority==='high'?'#f8717122':S.todoPriority==='medium'?'#fbbf2422':'#22202f')+';border:1px solid '+(S.todoPriority==='high'?'#f87171':S.todoPriority==='medium'?'#fbbf24':'#2e2c3d')+';border-radius:10px;padding:6px 10px;color:'+(S.todoPriority==='high'?'#f87171':S.todoPriority==='medium'?'#fbbf24':'#7c7a90')+';font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">⚑</button>'+'<button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:10px;padding:6px 12px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>'+(S.showPriorityPicker?'<div style="display:flex;gap:6px;margin-bottom:6px">'+'<button onclick="S.todoPriority=\'low\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='low'?'#f0eef8':'#2e2c3d')+';background:'+(S.todoPriority==='low'?'#f0eef822':'#1a1826')+';color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Low</button>'+'<button onclick="S.todoPriority=\'medium\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='medium'?'#fbbf24':'#2e2c3d')+';background:'+(S.todoPriority==='medium'?'#fbbf2422':'#1a1826')+';color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Medium</button>'+'<button onclick="S.todoPriority=\'high\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='high'?'#f87171':'#2e2c3d')+';background:'+(S.todoPriority==='high'?'#f8717122':'#1a1826')+';color:#f87171;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">High</button>'+'</div>':'')+'</div>')
       +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
         :S.todoItems.map(function(t){
           return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
             +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-            +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':'')+'">'+esc(t.text)+'</span>'
+            +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':t.priority==='high'?'color:#f87171;font-weight:700':t.priority==='medium'?'color:#fbbf24;font-weight:700':'color:#f0eef8')+'">'+esc(t.text)+'</span>'
             +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>')
             +'</div>';
         }).join(''))

@@ -675,6 +675,18 @@ function delMaintenanceLog(id){
   if(!uid)return;
   fsDel('users/'+uid+'/maintenanceLog/'+id);
 }
+function catTotal(cat){
+  return (cat.items||[]).reduce(function(a,item){
+    var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+    return a+m*(Number(item.pct)||100)/100;
+  },0);
+}
+function catTotal(cat){
+  return (cat.items||[]).reduce(function(a,item){
+    var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+    return a+m*(Number(item.pct)||100)/100;
+  },0);
+}
 function saveDeductibles(){
   if(!S.user)return;
   fsSet('users/'+S.user.uid+'/settings/deductibles',{categories:S.dedCategories||[]});
@@ -2197,12 +2209,6 @@ function _doRender(){
     // ── Category-based Deductibles ─────────────────────────────
     var dedCats=S.dedCategories||[];
     var inp2Style='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';
-    function catTotal(cat){
-      return (cat.items||[]).reduce(function(a,item){
-        var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
-        return a+m*(Number(item.pct)||100)/100;
-      },0);
-    }
     var grandTotal=dedCats.reduce(function(a,c){return a+catTotal(c);},0);
 
     if(S.maintenanceLogPage){

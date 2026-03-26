@@ -2283,7 +2283,7 @@ function _doRender(){
               +(expanded?
                 '<div style="padding:0 16px 12px;background:#1a1826">'
                 +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-                +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="var f=S.deductibleFreq||{};f[\''+key+'\']=(f[\''+key+'\']==\'annual\')?'\'monthly\':'\'annual\';S.deductibleFreq=f;render()">'+(isAnnual?'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>':'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>')+'</div>'
+                +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="var f=S.deductibleFreq||{};f[\''+key+'\']=(f[\''+key+'\']===\'annual\'?\'monthly\':\'annual\');S.deductibleFreq=f;render()">'+(isAnnual?'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>':'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>')+'</div>'
                 +'<input type="number" placeholder="0.00" value="'+(vals.monthly||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={};S.deductibleValues[\''+key+'\'].monthly=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'
                 +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
                 +'<input type="number" placeholder="0" value="'+(vals.pct||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={};S.deductibleValues[\''+key+'\'].pct=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'

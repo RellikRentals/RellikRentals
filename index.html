@@ -1214,13 +1214,23 @@ function toggleCanPost(id){
 }
 function toggleMaintenanceAccess(id){
   var t=S.tenants.find(function(x){return x.id===id;});
-  if(!t)return;
-  saveTenant(Object.assign({},t,{canMaintenance:!t.canMaintenance}));
+  if(!t||!t.email)return;
+  var newVal=!t.canMaintenance;
+  var updated=Object.assign({},t,{canMaintenance:newVal});
+  saveTenant(updated);
+  // Direct write to tenantProfiles for immediate effect
+  var f=fb();
+  f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canMaintenance:newVal},{merge:true});
 }
 function togglePropertyManagerAccess(id){
   var t=S.tenants.find(function(x){return x.id===id;});
-  if(!t)return;
-  saveTenant(Object.assign({},t,{canPropertyManager:!t.canPropertyManager}));
+  if(!t||!t.email)return;
+  var newVal=!t.canPropertyManager;
+  var updated=Object.assign({},t,{canPropertyManager:newVal});
+  saveTenant(updated);
+  // Direct write to tenantProfiles for immediate effect
+  var f=fb();
+  f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canPropertyManager:newVal},{merge:true});
 }
 
 function saveBulletinPost(post){

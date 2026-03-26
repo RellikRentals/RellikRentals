@@ -2221,7 +2221,7 @@ function _doRender(){
               +'<div style="flex:1"><div style="font-size:14px;font-weight:800">'+esc(cat.label)+'</div>'
               +(cTotal>0?'<div style="font-size:11px;color:#4ade80;margin-top:2px">$'+cTotal.toFixed(2)+'/mo · $'+(cTotal*12).toFixed(2)+'/yr</div>':'')+'</div>'
               +'<button onclick="event.stopPropagation();openSheet(\'addDedItem\',{catId:cat.id})" style="background:#6366f122;border:none;border-radius:8px;padding:4px 8px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button>'
-              +'<button onclick="event.stopPropagation();if(confirm(\'Delete \''+cat.label+\'?\')){delDedCategory(\''+cat.id+'\')}" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px;margin-left:4px">'+ICO.trash+'</button>'
+              +'<button onclick="event.stopPropagation();delDedCategory(\''+cat.id+'\')" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px;margin-left:4px">'+ICO.trash+'</button>'
               +'<span style="color:#7c7a90;font-size:18px;margin-left:4px">'+(catExpanded?'−':'+')+'</span>'
               +'</div>'
               +(catExpanded&&cat.items&&cat.items.length>0?

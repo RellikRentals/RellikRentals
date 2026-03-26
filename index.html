@@ -162,7 +162,7 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, deductibleValues:{}, deductibleExpanded:null, customDeductibles:[], deductibleFreq:{},
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
@@ -677,46 +677,58 @@ function delMaintenanceLog(id){
 }
 function saveDeductibles(){
   if(!S.user)return;
-  fsSet('users/'+S.user.uid+'/settings/deductibles',{values:S.deductibleValues,custom:S.customDeductibles||[],freq:S.deductibleFreq||{}});
+  fsSet('users/'+S.user.uid+'/settings/deductibles',{categories:S.dedCategories||[]});
 }
-
-function delCustomDeductible(key){
-  S.customDeductibles=(S.customDeductibles||[]).filter(function(d){return d.key!==key;});
-  delete S.deductibleValues[key];
-  saveDeductibles();
-  render();
-}
-function saveDeductibles(){
-  if(!S.user)return;
-  fsSet('users/'+S.user.uid+'/settings/deductibles',{values:S.deductibleValues,custom:S.customDeductibles||[],freq:S.deductibleFreq||{}});
-}
-
-function delCustomDeductible(key){
-  S.customDeductibles=(S.customDeductibles||[]).filter(function(d){return d.key!==key;});
-  delete S.deductibleValues[key];
-  saveDeductibles();
-  render();
-}
-function saveDeductibles(){
-  if(!S.user)return;
-  fsSet('users/'+S.user.uid+'/settings/deductibles',{values:S.deductibleValues,custom:S.customDeductibles||[],freq:S.deductibleFreq||{}});
-}
-function addCustomDeductible(){
-  var label=(S.sheetData&&S.sheetData.customLabel||'').trim();
+function addDedCategory(){
+  var label=(S.sheetData&&S.sheetData.label||'').trim();
   if(!label)return;
-  var key='custom_'+Date.now();
-  S.customDeductibles=S.customDeductibles||[];
-  S.customDeductibles.push({key:key,label:label,icon:'📌'});
+  S.dedCategories=S.dedCategories||[];
+  S.dedCategories.push({id:'cat_'+Date.now(),label:label,items:[]});
   saveDeductibles();
   closeSheet();
   render();
 }
-function delCustomDeductible(key){
-  S.customDeductibles=(S.customDeductibles||[]).filter(function(d){return d.key!==key;});
-  delete S.deductibleValues[key];
+function delDedCategory(id){
+  S.dedCategories=(S.dedCategories||[]).filter(function(c){return c.id!==id;});
   saveDeductibles();
   render();
 }
+function addDedItem(catId){
+  var label=(S.sheetData&&S.sheetData.label||'').trim();
+  if(!label)return;
+  S.dedCategories=(S.dedCategories||[]).map(function(c){
+    if(c.id===catId){
+      var items=c.items||[];
+      items.push({id:'item_'+Date.now(),label:label,monthly:0,pct:100,isAnnual:false});
+      return Object.assign({},c,{items:items});
+    }
+    return c;
+  });
+  saveDeductibles();
+  closeSheet();
+  render();
+}
+function delDedItem(catId,itemId){
+  S.dedCategories=(S.dedCategories||[]).map(function(c){
+    if(c.id===catId) return Object.assign({},c,{items:(c.items||[]).filter(function(i){return i.id!==itemId;})});
+    return c;
+  });
+  saveDeductibles();
+  render();
+}
+function updateDedItem(catId,itemId,field,val){
+  S.dedCategories=(S.dedCategories||[]).map(function(c){
+    if(c.id!==catId)return c;
+    return Object.assign({},c,{items:(c.items||[]).map(function(i){
+      if(i.id!==itemId)return i;
+      var u={};u[field]=val;
+      return Object.assign({},i,u);
+    })});
+  });
+  saveDeductibles();
+  render();
+}
+
 function saveNetWorth(){
   if(!S.user)return;
   fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther});
@@ -781,7 +793,7 @@ function subscribeCapitalAssets(uid){
   }catch(e){}
   // Load deductible values
   try{var _fd=fb();_fd.getDoc(_fd.doc(_fd.db,'users/'+uid+'/settings/deductibles')).then(function(dd){if(dd&&dd.exists&&dd.exists()){S.deductibleValues=dd.data().values||{};render();}}).catch(function(){});}catch(e){}
-  try{var _fd=fb();_fd.getDoc(_fd.doc(_fd.db,'users/'+uid+'/settings/deductibles')).then(function(dd){if(dd&&dd.exists&&dd.exists()){var dd2=dd.data();S.deductibleValues=dd2.values||{};S.customDeductibles=dd2.custom||[];S.deductibleFreq=dd2.freq||{};render();}}).catch(function(){});} catch(e){}
+  try{var _fd=fb();_fd.getDoc(_fd.doc(_fd.db,'users/'+uid+'/settings/deductibles')).then(function(dd){if(dd&&dd.exists&&dd.exists()){var dd2=dd.data();if(dd2.categories){S.dedCategories=dd2.categories||[];}render();}}).catch(function(){});} catch(e){}
   // Load net worth settings
   try{
     var _f=fb();
@@ -1542,10 +1554,17 @@ function renderSheet(){
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveAsset()">'+(isEditA?'Save Changes':'Add Asset')+'</button></div>';
   }
 
-  else if(S.sheet==='addCustomDeductible'){
-    title='+ Custom Deductible';
-    body='<div class="frow">'+inp('Name','text',S.sheetData.customLabel||'','customLabel','e.g. Google Workspace, Internet...')+'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="addCustomDeductible()">Add</button></div>';
+  else if(S.sheet==='addDedCategory'){
+    title='+ New Category';
+    body='<div class="frow">'+inp('Category Name','text',S.sheetData.label||'','label','e.g. Office, Vehicle, Communications...')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="addDedCategory()">Add Category</button></div>';
+  }
+  else if(S.sheet==='addDedItem'){
+    var catId=S.sheetData.catId;
+    var cat=(S.dedCategories||[]).find(function(c){return c.id===catId;})||{};
+    title='+ Add to '+esc(cat.label||'Category');
+    body='<div class="frow">'+inp('Expense Name','text',S.sheetData.label||'','label','e.g. Internet, Cell Phone...')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="addDedItem(\''+catId+'\')">Add</button></div>';
   }
   else if(S.sheet==='editMaintenanceLog'){
     var d=S.sheetData;
@@ -1746,7 +1765,7 @@ function _doRender(){
       var ls=leaseStatus(t.lease||'2099-01-01');
       var tog=function(key){return 'onclick="S.collapsed.'+key+'=!S.collapsed.'+key+';render()"';};
       var arr=function(key){return '<button '+tog(key)+' style="background:none;border:none;cursor:pointer;color:#7c7a90;font-size:18px;line-height:1;padding:0;font-family:Nunito,sans-serif">'+(S.collapsed[key]?'+':'−')+'</button>';};
-      ph='<div style="background:linear-gradient(135deg,'+(t.paid?'#1a3a2a,#1e4032':'#3a1a1a,#401e1e')+';border-radius:20px;padding:20px;margin:0 16px 12px">'+'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px">WELCOME BACK</div>'+'<div style="font-size:24px;font-weight:800;color:#fff">'+esc(t.name)+'</div>'+'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px">'+esc(t.unit)+' · '+esc(t.property)+'</div>'+'<div style="margin-top:16px;display:flex;align-items:center;gap:12px">'+'<div style="font-size:36px;font-weight:900;color:'+(t.paid?'#4ade80':'#f87171')+'">'+fmt(t.rent)+'</div>'+'<div><div style="font-size:15px;font-weight:800;color:'+(t.paid?'#4ade80':'#f87171')+'">'+(t.paid?'✓ Paid':'⏳ Unpaid')+'</div>'+'<div style="font-size:11px;color:rgba(255,255,255,0.5)">Monthly Rent</div></div></div></div>'+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px;margin-bottom:12px">'+'<button onclick="S.collapsed.requests=false;render()" style="background:#6366f122;border:1px solid #6366f133;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'+'<div style="font-size:24px;margin-bottom:8px">🔧</div>'+'<div style="font-size:13px;font-weight:800;color:#f0eef8">Maintenance</div>'+'<div style="font-size:11px;color:#7c7a90">'+S.myRequests.length+' request'+(S.myRequests.length===1?'':'s')+'</div></button>'+'<button onclick="S.tenantBulletinPage=true;render()" style="background:#4ade8022;border:1px solid #4ade8033;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'+'<div style="font-size:24px;margin-bottom:8px">📋</div>'+'<div style="font-size:13px;font-weight:800;color:#f0eef8">Bulletin</div>'+'<div style="font-size:11px;color:#7c7a90">'+S.bulletinPosts.length+' post'+(S.bulletinPosts.length===1?'':'s')+'</div></button>'+(t.canMaintenance?'<button onclick="S.tenantMaintenancePage=true;render()" style="background:#f9731622;border:1px solid #f9731633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif"><div style="font-size:24px;margin-bottom:8px">⚙️</div><div style="font-size:13px;font-weight:800;color:#f0eef8">My Panel</div><div style="font-size:11px;color:#7c7a90">Maintenance</div></button>':'')+(t.canPropertyManager?'<button onclick="S.propertyManagerPage=true;render()" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif"><div style="font-size:24px;margin-bottom:8px">🏢</div><div style="font-size:13px;font-weight:800;color:#f0eef8">Manager</div><div style="font-size:11px;color:#7c7a90">Dashboard</div></button>':'')+'</div>'
+      ph='<div style="background:'+(t.paid?'#1a3a2a':'#3a1a1a')+';background:linear-gradient(135deg,'+(t.paid?'#1a3a2a,#1e4032':'#3a1a1a,#401e1e')+');border-radius:20px;padding:20px;margin:0 16px 12px;border:1px solid '+(t.paid?'#2d5a3d':'#5a2d2d')+'">'+'<div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px">WELCOME BACK</div>'+'<div style="font-size:24px;font-weight:800;color:#fff">'+esc(t.name)+'</div>'+'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px">'+esc(t.unit)+' · '+esc(t.property)+'</div>'+'<div style="margin-top:16px;display:flex;align-items:center;gap:12px">'+'<div style="font-size:36px;font-weight:900;color:'+(t.paid?'#4ade80':'#f87171')+'">'+fmt(t.rent)+'</div>'+'<div><div style="font-size:15px;font-weight:800;color:'+(t.paid?'#4ade80':'#f87171')+'">'+(t.paid?'✓ Paid':'⏳ Unpaid')+'</div>'+'<div style="font-size:11px;color:rgba(255,255,255,0.5)">Monthly Rent</div></div></div></div>'+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px;margin-bottom:12px">'+'<button onclick="S.collapsed.requests=false;render()" style="background:#6366f122;border:1px solid #6366f133;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'+'<div style="font-size:24px;margin-bottom:8px">🔧</div>'+'<div style="font-size:13px;font-weight:800;color:#f0eef8">Maintenance</div>'+'<div style="font-size:11px;color:#7c7a90">'+S.myRequests.length+' request'+(S.myRequests.length===1?'':'s')+'</div></button>'+'<button onclick="S.tenantBulletinPage=true;render()" style="background:#4ade8022;border:1px solid #4ade8033;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif">'+'<div style="font-size:24px;margin-bottom:8px">📋</div>'+'<div style="font-size:13px;font-weight:800;color:#f0eef8">Bulletin</div>'+'<div style="font-size:11px;color:#7c7a90">'+S.bulletinPosts.length+' post'+(S.bulletinPosts.length===1?'':'s')+'</div></button>'+(t.canMaintenance?'<button onclick="S.tenantMaintenancePage=true;render()" style="background:#f9731622;border:1px solid #f9731633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif"><div style="font-size:24px;margin-bottom:8px">⚙️</div><div style="font-size:13px;font-weight:800;color:#f0eef8">My Panel</div><div style="font-size:11px;color:#7c7a90">Maintenance</div></button>':'')+(t.canPropertyManager?'<button onclick="S.propertyManagerPage=true;render()" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:16px;padding:16px;cursor:pointer;text-align:left;font-family:Nunito,sans-serif"><div style="font-size:24px;margin-bottom:8px">🏢</div><div style="font-size:13px;font-weight:800;color:#f0eef8">Manager</div><div style="font-size:11px;color:#7c7a90">Dashboard</div></button>':'')+'</div>'
         // Old status section removed — now in hero card
         // Lease Details
         // Collapsible sections below tiles
@@ -2175,138 +2194,82 @@ function _doRender(){
     var totalKmT=S.mileageLog.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
     var mileDeductionT=totalKmT<=5000?totalKmT*0.73:(5000*0.73)+((totalKmT-5000)*0.67);
     var netIncomeT=ytdRentT-ytdExpT-ytdUtilT-mileDeductionT;
-    var DEDUCTIONS=[
-      {label:'Vehicle Insurance',desc:'Business use endorsement — 99% deductible',icon:'🚗'},
-      {label:'Cell Phone Bill',desc:'% used for property management',icon:'📱'},
-      {label:'Internet Bill',desc:'% used for business',icon:'🌐'},
-      {label:'Home Office',desc:'If admin work done from home — % of space',icon:'🏠'},
-      {label:'Tools & Equipment',desc:'Drills, saws, ladders etc used for properties',icon:'🔧'},
-      {label:'Professional Fees',desc:'Accountant, legal, property management',icon:'💼'},
-      {label:'Mortgage Interest',desc:'Interest portion of rental property mortgage',icon:'🏦'},
-      {label:'Property Taxes',desc:'Annual property tax on rental properties',icon:'📋'},
-      {label:'Advertising',desc:'Listing fees, signage, marketing',icon:'📢'},
-      {label:'Claude Pro Subscription',desc:'App development = legitimate business expense 😄',icon:'🤖'},
-      {label:'Namecheap Domain & Email',desc:'rellik.ca infrastructure',icon:'💻'},
-      {label:'Capital Improvements',desc:'Track separately — depreciate over time',icon:'🏗️'},
-    ];
-    if(S.maintenanceLogPage){
-      var mlEntries=S.maintenanceLog||[];
-      c='<div class="top-bar"><button onclick="S.maintenanceLogPage=false;render()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;margin-right:8px;font-size:20px">&larr;</button><div class="page-title">Maintenance Log</div></div>'
-        +'<div style="padding:0 16px">'
-        +(mlEntries.length===0
-          ?'<div class="card" style="text-align:center;color:#7c7a90;padding:32px"><div style="font-size:36px;margin-bottom:8px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No entries yet</div><div style="font-size:12px">Added automatically when todos are marked done</div></div>'
-          :'<div class="card" style="padding:0">'+mlEntries.map(function(e,i){return '<div style="padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start">'+'<div style="flex:1;min-width:0">'+'<div style="font-size:13px;font-weight:700;color:#f0eef8">'+esc(e.task||'—')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(e.date||'')+(e.property?' · '+esc(e.property):'')+(e.unit?' · Unit '+esc(e.unit):'')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:1px">By: '+esc(e.completedBy||'—')+(e.cost?' · Supplies: $'+Number(e.cost).toFixed(2):'')+'</div>'+(e.notes?'<div style="font-size:11px;color:#4ade80;font-style:italic;margin-top:2px">'+esc(e.notes)+'</div>':'')+'</div>'+'<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">'+'<button onclick="openSheet(\'editMaintenanceLog\',JSON.parse(JSON.stringify(S.maintenanceLog.find(function(x){return x.id===\''+e.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'+'<button onclick="delMaintenanceLog(\''+e.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'+'</div>'+'</div></div>';}).join('')+'</div>')
-        +'<div style="height:16px"></div></div>';
-      return c;
+    // ── Category-based Deductibles ─────────────────────────────
+    var dedCats=S.dedCategories||[];
+    var inp2Style='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';
+    function catTotal(cat){
+      return (cat.items||[]).reduce(function(a,item){
+        var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+        return a+m*(Number(item.pct)||100)/100;
+      },0);
     }
-        c='<div class="top-bar"><div class="page-title">Tax</div><div style="display:flex;gap:8px"><button onclick="generateYearEndPDF()" style="background:#4ade8022;border:none;border-radius:12px;padding:8px 12px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📄 Export PDF</button><button onclick="S.maintenanceLogPage=true;render()" style="background:#f59e0b22;border:none;border-radius:12px;padding:8px 12px;color:#f59e0b;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Log</button><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div></div>'
-      +'<div style="padding:0 16px">'
-      +'<div class="hero" style="margin-bottom:12px">'
-      +'<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px">YTD '+curY+' SUMMARY</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">'
-      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Rent Income</div><div style="font-size:18px;font-weight:800;color:#4ade80">'+fmtS(ytdRentT)+'</div></div>'
-      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Expenses</div><div style="font-size:18px;font-weight:800;color:#f87171">-'+fmtS(ytdExpT)+'</div></div>'
-      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Utilities</div><div style="font-size:18px;font-weight:800;color:#fb923c">-'+fmtS(ytdUtilT)+'</div></div>'
-      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Mileage ('+Math.round(totalKmT)+'km)</div><div style="font-size:18px;font-weight:800;color:#fbbf24">-'+fmtS(mileDeductionT)+'</div></div>'
-      +'</div>'
-      +'<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:center">'
-      +'<div style="font-size:13px;color:rgba(255,255,255,0.7)">Net Rental Income</div>'
-      +'<div style="font-size:22px;font-weight:800;color:'+(netIncomeT>=0?'#4ade80':'#f87171')+'">'+(netIncomeT>=0?'+':'')+fmtS(netIncomeT)+'</div>'
-      +'</div>'
-      +'</div>'
+    var grandTotal=dedCats.reduce(function(a,c){return a+catTotal(c);},0);
+
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;padding:10px 14px;cursor:pointer;background:#22202f;border-radius:12px">'
-      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;cursor:pointer;flex:1" onclick="S.deductionsCollapsed=!S.deductionsCollapsed;render()">DEDUCTIBLES</div>'
-      +(!S.deductionsCollapsed?'<button onclick="event.stopPropagation();openSheet(\'addCustomDeductible\',{})" style="background:#6366f122;border:none;border-radius:8px;padding:4px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;margin-right:8px">+ Add</button>':'')
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;cursor:pointer;flex:1" onclick="S.deductionsCollapsed=!S.deductionsCollapsed;render()">DEDUCTIBLES'+(grandTotal>0?' <span style="color:#4ade80;font-weight:700">$'+grandTotal.toFixed(2)+'/mo</span>':'')+'</div>'
+      +(!S.deductionsCollapsed?'<button onclick="event.stopPropagation();openSheet(\'addDedCategory\',{})" style="background:#6366f122;border:none;border-radius:8px;padding:4px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;margin-right:8px">+ Category</button>':'')
       +'<span style="color:#7c7a90;font-size:18px;font-weight:300;cursor:pointer" onclick="S.deductionsCollapsed=!S.deductionsCollapsed;render()">'+(S.deductionsCollapsed?'+':'−')+'</span>'
       +'</div>'
       +(!S.deductionsCollapsed?
-        ''
-        +'<div class="card" style="padding:0">'
-        +DEDUCTIONS.map(function(d,i){
-          var key=d.label.replace(/[^a-zA-Z]/g,'');
-          var vals=S.deductibleValues[key]||{};
-          var expanded=S.deductibleExpanded===key;
-          var monthly=Number(vals.monthly)||0;
-          var pct=Number(vals.pct)||0;
-          var monthlyDed=monthly*(pct/100);
-          var annualDed=monthlyDed*12;
-          var inp2='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';
-          return '<div style="border-bottom:'+(i<DEDUCTIONS.length-1?'1px solid #2e2c3d':'none')+'">'
-            +'<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer" onclick="S.deductibleExpanded=S.deductibleExpanded===\''+key+'\'?null:\''+key+'\';render()">'
-            +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">'+d.icon+'</div>'
-            +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+d.label+'</div>'
-            +(monthlyDed>0?'<div style="font-size:11px;color:#4ade80;margin-top:2px">$'+monthlyDed.toFixed(2)+'/mo · $'+annualDed.toFixed(2)+'/yr deductible</div>':'<div style="font-size:11px;color:#7c7a90">'+d.desc+'</div>')
-            +'</div>'
-            +'<span style="color:#7c7a90;font-size:14px">'+(expanded?'−':'+')+'</span>'
-            +'</div>'
-            +(expanded?
-              '<div style="padding:0 16px 12px;background:#1a1826">'
-              +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="var f=S.deductibleFreq||{};f[\''+key+'\']=(f[\''+key+'\']==='+'\''+'annual'+'\''+')?'+'\''+'monthly'+'\''+':\'annual\';S.deductibleFreq=f;render()">'+((!S.deductibleFreq||S.deductibleFreq[key]!=='annual')?'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>':'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>')+'</div>'
-              +'<input type="number" placeholder="0.00" value="'+(vals.monthly||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={}; S.deductibleValues[\''+key+'\'].monthly=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'
-              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
-              +'<input type="number" placeholder="0" value="'+(vals.pct||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={}; S.deductibleValues[\''+key+'\'].pct=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'
+        (dedCats.length===0
+          ?'<div style="text-align:center;color:#7c7a90;padding:20px;font-size:13px">No categories yet — tap + Category to get started</div>'
+          :dedCats.map(function(cat){
+            var catExpanded=!S.dedCatCollapsed[cat.id];
+            var cTotal=catTotal(cat);
+            return '<div class="card" style="padding:0;margin-bottom:8px">'
+              +'<div style="display:flex;align-items:center;padding:12px 16px;cursor:pointer;gap:8px" onclick="var cc=S.dedCatCollapsed||{};cc[\''+cat.id+'\']= !cc[\''+cat.id+'\'];S.dedCatCollapsed=cc;render()">'
+              +'<div style="flex:1"><div style="font-size:14px;font-weight:800">'+esc(cat.label)+'</div>'
+              +(cTotal>0?'<div style="font-size:11px;color:#4ade80;margin-top:2px">$'+cTotal.toFixed(2)+'/mo · $'+(cTotal*12).toFixed(2)+'/yr</div>':'')+'</div>'
+              +'<button onclick="event.stopPropagation();openSheet(\'addDedItem\',{catId:cat.id})" style="background:#6366f122;border:none;border-radius:8px;padding:4px 8px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button>'
+              +'<button onclick="event.stopPropagation();if(confirm(\'Delete \''+cat.label+\'?\')){delDedCategory(\''+cat.id+'\')}" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px;margin-left:4px">'+ICO.trash+'</button>'
+              +'<span style="color:#7c7a90;font-size:18px;margin-left:4px">'+(catExpanded?'−':'+')+'</span>'
               +'</div>'
-              +(monthlyDed>0?
-                '<div style="background:#22202f;border-radius:10px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-                +'<div><div style="font-size:10px;color:#7c7a90">Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+monthlyDed.toFixed(2)+'</div></div>'
-                +'<div><div style="font-size:10px;color:#7c7a90">Annual Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+annualDed.toFixed(2)+'</div></div>'
-                +'</div>'
+              +(catExpanded&&cat.items&&cat.items.length>0?
+                cat.items.map(function(item,ii){
+                  var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+                  var ded=m*(Number(item.pct)||100)/100;
+                  var expanded2=S.dedCatExpanded&&S.dedCatExpanded[item.id];
+                  return '<div style="border-top:1px solid #2e2c3d">'
+                    +'<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer" onclick="var ce=S.dedCatExpanded||{};ce[\''+item.id+'\']= !ce[\''+item.id+'\'];S.dedCatExpanded=ce;render()">'
+                    +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+esc(item.label)+'</div>'
+                    +(ded>0?'<div style="font-size:11px;color:#4ade80;margin-top:1px">$'+ded.toFixed(2)+'/mo</div>':'<div style="font-size:11px;color:#4a4860">No amount set</div>')+'</div>'
+                    +'<button onclick="event.stopPropagation();delDedItem(\''+cat.id+'\',\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px">'+ICO.trash+'</button>'
+                    +'<span style="color:#7c7a90;font-size:14px">'+(expanded2?'−':'+')+'</span>'
+                    +'</div>'
+                    +(expanded2?
+                      '<div style="padding:0 16px 12px;background:#1a1826">'
+                      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+                      +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="event.stopPropagation();updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'isAnnual\',!item.isAnnual)">'+(item.isAnnual?'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>':'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>')+'</div>'
+                      +'<input type="number" placeholder="0.00" value="'+(item.monthly||'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'monthly\',this.value)" style="'+inp2Style+'"></div>'
+                      +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
+                      +'<input type="number" placeholder="100" value="'+(item.pct!=null?item.pct:'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'pct\',this.value)" style="'+inp2Style+'"></div>'
+                      +'</div>'
+                      +(ded>0?
+                        '<div style="background:#22202f;border-radius:10px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+                        +'<div><div style="font-size:10px;color:#7c7a90">Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+ded.toFixed(2)+'</div></div>'
+                        +'<div><div style="font-size:10px;color:#7c7a90">Annual Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+(ded*12).toFixed(2)+'</div></div>'
+                        +'</div>'
+                      :'')
+                      +'</div>'
+                    :'')
+                    +'</div>';
+                }).join('')
               :'')
-              +'</div>'
-            :'')
-            +'</div>';
-        }).join('')
-        +'</div>'
-        +(S.customDeductibles&&S.customDeductibles.length>0?
-          '<div class="card" style="padding:0;margin-top:8px">'
-          +(S.customDeductibles||[]).map(function(d,i){
-            var key=d.key;
-            var vals=S.deductibleValues[key]||{};
-            var expanded=S.deductibleExpanded===key;
-            var isAnnual=S.deductibleFreq&&S.deductibleFreq[key]==='annual';
-            var inputAmt=Number(vals.monthly)||0;
-            var monthly=isAnnual?inputAmt/12:inputAmt;
-            var pct=Number(vals.pct)||0;
-            var monthlyDed=monthly*(pct/100);
-            var annualDed=monthlyDed*12;
-            var inp2='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';
-            return '<div style="border-bottom:'+(i<(S.customDeductibles.length-1)?'1px solid #2e2c3d':'none')+'">'
-              +'<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer" onclick="S.deductibleExpanded=S.deductibleExpanded===\''+key+'\'?null:\''+key+'\';render()">'
-              +'<div style="font-size:22px;width:36px;text-align:center;flex-shrink:0">📌</div>'
-              +'<div style="flex:1"><div style="font-size:14px;font-weight:700">'+esc(d.label)+'</div>'
-              +(monthlyDed>0?'<div style="font-size:11px;color:#4ade80;margin-top:2px">$'+monthlyDed.toFixed(2)+'/mo · $'+annualDed.toFixed(2)+'/yr deductible</div>':'')
-              +'</div>'
-              +'<button onclick="event.stopPropagation();delCustomDeductible(\''+key+'\')" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px;margin-right:4px">'+ICO.trash+'</button>'
-              +'<span style="color:#7c7a90;font-size:14px">'+(expanded?'−':'+')+'</span>'
-              +'</div>'
-              +(expanded?
-                '<div style="padding:0 16px 12px;background:#1a1826">'
-                +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-                +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="var f=S.deductibleFreq||{};f[\''+key+'\']=(f[\''+key+'\']===\'annual\'?\'monthly\':\'annual\');S.deductibleFreq=f;render()">'+(isAnnual?'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>':'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>')+'</div>'
-                +'<input type="number" placeholder="0.00" value="'+(vals.monthly||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={};S.deductibleValues[\''+key+'\'].monthly=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'
-                +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
-                +'<input type="number" placeholder="0" value="'+(vals.pct||'')+'" onblur="if(!S.deductibleValues[\''+key+'\'])S.deductibleValues[\''+key+'\']={};S.deductibleValues[\''+key+'\'].pct=this.value;saveDeductibles();render()" style="'+inp2+'"></div>'
-                +'</div>'
-                +(monthlyDed>0?'<div style="background:#22202f;border-radius:10px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div style="font-size:10px;color:#7c7a90">Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+monthlyDed.toFixed(2)+'</div></div><div><div style="font-size:10px;color:#7c7a90">Annual Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+annualDed.toFixed(2)+'</div></div></div>':'')
+              +(catExpanded&&(!cat.items||cat.items.length===0)?'<div style="padding:12px 16px;font-size:12px;color:#4a4860">No items — tap + Add to add expenses</div>':'')
+              +(catExpanded&&cTotal>0?
+                '<div style="border-top:1px solid #2e2c3d;padding:10px 16px;display:grid;grid-template-columns:1fr 1fr">'
+                +'<div><div style="font-size:10px;color:#7c7a90">Category Monthly</div><div style="font-size:14px;font-weight:800;color:#4ade80">$'+cTotal.toFixed(2)+'</div></div>'
+                +'<div><div style="font-size:10px;color:#7c7a90">Category Annual</div><div style="font-size:14px;font-weight:800;color:#4ade80">$'+(cTotal*12).toFixed(2)+'</div></div>'
                 +'</div>'
               :'')
               +'</div>';
-          }).join('')
+          }).join(''))
+        +(grandTotal>0?
+          '<div style="background:#22202f;border-radius:14px;padding:14px;margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">GRAND TOTAL MONTHLY</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+grandTotal.toFixed(2)+'</div></div>'
+          +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">GRAND TOTAL ANNUAL</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+(grandTotal*12).toFixed(2)+'</div></div>'
           +'</div>'
         :'')
-        +(function(){
-          var isAnnual=function(k){return S.deductibleFreq&&S.deductibleFreq[k]==='annual';};
-          var totalMonthly=DEDUCTIONS.reduce(function(a,d){var k=d.label.replace(/[^a-zA-Z]/g,'');var v=S.deductibleValues[k]||{};var m=isAnnual(k)?(Number(v.monthly)||0)/12:(Number(v.monthly)||0);return a+m*(Number(v.pct)||0)/100;},0)
-            +(S.customDeductibles||[]).reduce(function(a,d){var v=S.deductibleValues[d.key]||{};var m=isAnnual(d.key)?(Number(v.monthly)||0)/12:(Number(v.monthly)||0);return a+m*(Number(v.pct)||0)/100;},0);
-          var totalAnnual=totalMonthly*12;
-          return totalMonthly>0
-            ?'<div style="background:#22202f;border-radius:14px;padding:14px;margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">'
-              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TOTAL MONTHLY</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+totalMonthly.toFixed(2)+'</div></div>'
-              +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">TOTAL ANNUAL</div><div style="font-size:18px;font-weight:800;color:#4ade80">$'+totalAnnual.toFixed(2)+'</div></div>'
-              +'</div>'
-            :'';
-        }())
         +'<div style="font-size:11px;color:#4a4860;text-align:center;padding:12px 0">Always consult a tax professional. This is a guide only.</div>'
       :'')
 

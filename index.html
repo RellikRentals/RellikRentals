@@ -2205,6 +2205,30 @@ function _doRender(){
     }
     var grandTotal=dedCats.reduce(function(a,c){return a+catTotal(c);},0);
 
+    if(S.maintenanceLogPage){
+      var mlEntries=S.maintenanceLog||[];
+      c='<div class="top-bar"><button onclick="S.maintenanceLogPage=false;render()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;margin-right:8px;font-size:20px">&larr;</button><div class="page-title">Maintenance Log</div></div>'
+        +'<div style="padding:0 16px">'
+        +(mlEntries.length===0
+          ?'<div class="card" style="text-align:center;color:#7c7a90;padding:32px"><div style="font-size:36px;margin-bottom:8px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No entries yet</div><div style="font-size:12px">Added automatically when todos are marked done</div></div>'
+          :'<div class="card" style="padding:0">'+mlEntries.map(function(e,i){return '<div style="padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'+'<div style="display:flex;justify-content:space-between;align-items:flex-start">'+'<div style="flex:1;min-width:0">'+'<div style="font-size:13px;font-weight:700;color:#f0eef8">'+esc(e.task||'—')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(e.date||'')+(e.property?' · '+esc(e.property):'')+(e.unit?' · Unit '+esc(e.unit):'')+'</div>'+'<div style="font-size:11px;color:#7c7a90;margin-top:1px">By: '+esc(e.completedBy||'—')+(e.cost?' · Supplies: $'+Number(e.cost).toFixed(2):'')+'</div>'+(e.notes?'<div style="font-size:11px;color:#4ade80;font-style:italic;margin-top:2px">'+esc(e.notes)+'</div>':'')+'</div>'+'<div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px">'+'<button onclick="openSheet(\'editMaintenanceLog\',JSON.parse(JSON.stringify(S.maintenanceLog.find(function(x){return x.id===\''+e.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'+'<button onclick="delMaintenanceLog(\''+e.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'+'</div>'+'</div></div>';}).join('')+'</div>')
+        +'<div style="height:16px"></div></div>';
+      return c;
+    }
+    c='<div class="top-bar"><div class="page-title">Tax</div><div style="display:flex;gap:8px"><button onclick="generateYearEndPDF()" style="background:#4ade8022;border:none;border-radius:12px;padding:8px 12px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📄 Export PDF</button><button onclick="S.maintenanceLogPage=true;render()" style="background:#f59e0b22;border:none;border-radius:12px;padding:8px 12px;color:#f59e0b;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Log</button><button onclick="openSheet(\'receiptGen\',{})" style="background:#6366f122;border:none;border-radius:12px;padding:8px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🧾 Gen Receipts</button></div></div>'
+      +'<div style="padding:0 16px">'
+      +'<div class="hero" style="margin-bottom:12px">'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px">YTD '+curY+' SUMMARY</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">'
+      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Rent Income</div><div style="font-size:18px;font-weight:800;color:#4ade80">'+fmtS(ytdRentT)+'</div></div>'
+      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Expenses</div><div style="font-size:18px;font-weight:800;color:#f87171">-'+fmtS(ytdExpT)+'</div></div>'
+      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Utilities</div><div style="font-size:18px;font-weight:800;color:#fb923c">-'+fmtS(ytdUtilT)+'</div></div>'
+      +'<div><div style="font-size:11px;color:rgba(255,255,255,0.6)">Mileage ('+Math.round(totalKmT)+'km)</div><div style="font-size:18px;font-weight:800;color:#fbbf24">-'+fmtS(mileDeductionT)+'</div></div>'
+      +'</div>'
+      +'<div style="border-top:1px solid rgba(255,255,255,0.2);margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:center">'
+      +'<div style="font-size:13px;color:rgba(255,255,255,0.7)">Net Rental Income</div>'
+      +'<div style="font-size:20px;font-weight:800;color:'+(netIncomeT>=0?'#4ade80':'#f87171')+'">'+fmtS(Math.abs(netIncomeT))+'</div>'
+      +'</div></div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;padding:10px 14px;cursor:pointer;background:#22202f;border-radius:12px">'
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;cursor:pointer;flex:1" onclick="S.deductionsCollapsed=!S.deductionsCollapsed;render()">DEDUCTIBLES'+(grandTotal>0?' <span style="color:#4ade80;font-weight:700">$'+grandTotal.toFixed(2)+'/mo</span>':'')+'</div>'
       +(!S.deductionsCollapsed?'<button onclick="event.stopPropagation();openSheet(\'addDedCategory\',{})" style="background:#6366f122;border:none;border-radius:8px;padding:4px 10px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;margin-right:8px">+ Category</button>':'')

@@ -706,15 +706,19 @@ function delMaintenanceLog(id){
   if(!uid)return;
   fsDel('users/'+uid+'/maintenanceLog/'+id);
 }
+var MONTHS_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function catTotal(cat){
   return (cat.items||[]).reduce(function(a,item){
-    var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
-    return a+m*(Number(item.pct)||100)/100;
-  },0);
-}
-function catTotal(cat){
-  return (cat.items||[]).reduce(function(a,item){
-    var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+    var m;
+    if(item.isVariable){
+      var vals=item.months||{};
+      var curM=new Date().getMonth();
+      var sum=0;
+      for(var mi=0;mi<=curM;mi++){var k=MONTHS_SHORT[mi].toLowerCase();sum+=Number(vals[k])||0;}
+      m=curM>=0?sum/(curM+1):0;
+    } else {
+      m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+    }
     return a+m*(Number(item.pct)||100)/100;
   },0);
 }
@@ -742,7 +746,7 @@ function addDedItem(catId){
   S.dedCategories=(S.dedCategories||[]).map(function(c){
     if(c.id===catId){
       var items=c.items||[];
-      items.push({id:'item_'+Date.now(),label:label,monthly:0,pct:100,isAnnual:false});
+      items.push({id:'item_'+Date.now(),label:label,monthly:0,pct:100,isAnnual:false,isVariable:false,months:{}});
       return Object.assign({},c,{items:items});
     }
     return c;
@@ -764,6 +768,15 @@ function updateDedItem(catId,itemId,field,val){
     if(c.id!==catId)return c;
     return Object.assign({},c,{items:(c.items||[]).map(function(i){
       if(i.id!==itemId)return i;
+      if(field==='mode'){
+        return Object.assign({},i,{isAnnual:val==='annual',isVariable:val==='variable'});
+      }
+      if(field.indexOf('month_')===0){
+        var k=field.replace('month_','');
+        var months=Object.assign({},i.months||{});
+        months[k]=Number(val)||0;
+        return Object.assign({},i,{months:months});
+      }
       var u={};u[field]=val;
       return Object.assign({},i,u);
     })});
@@ -2359,7 +2372,16 @@ function _doRender(){
               +'</div>'
               +(catExpanded&&cat.items&&cat.items.length>0?
                 cat.items.map(function(item,ii){
-                  var m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+                  var m;
+                  if(item.isVariable){
+                    var vals=item.months||{};
+                    var curM=new Date().getMonth();
+                    var sum=0;
+                    for(var mi=0;mi<=curM;mi++){var k=MONTHS_SHORT[mi].toLowerCase();sum+=Number(vals[k])||0;}
+                    m=curM>=0?sum/(curM+1):0;
+                  } else {
+                    m=item.isAnnual?(Number(item.monthly)||0)/12:(Number(item.monthly)||0);
+                  }
                   var ded=m*(Number(item.pct)||100)/100;
                   var expanded2=S.dedCatExpanded&&S.dedCatExpanded[item.id];
                   return '<div style="border-top:1px solid #2e2c3d">'
@@ -2371,16 +2393,29 @@ function _doRender(){
                     +'</div>'
                     +(expanded2?
                       '<div style="padding:0 16px 12px;background:#1a1826">'
-                      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
-                      +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px;cursor:pointer" onclick="event.stopPropagation();updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'isAnnual\','+(item.isAnnual?'false':'true')+')">'+(item.isAnnual?'ANNUAL COST ($) <span style="color:#6366f1">↔ Monthly</span>':'MONTHLY COST ($) <span style="color:#6366f1">↔ Annual</span>')+'</div>'
-                      +'<input type="number" placeholder="0.00" value="'+(item.monthly||'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'monthly\',this.value)" style="'+inp2Style+'"></div>'
-                      +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
-                      +'<input type="number" placeholder="100" value="'+(item.pct!=null?item.pct:'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'pct\',this.value)" style="'+inp2Style+'"></div>'
+                      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">'
+                      +'<button onclick="event.stopPropagation();updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'mode\',\'monthly\')" style="padding:8px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer;border:'+(!item.isAnnual&&!item.isVariable?'2px solid #6366f1':'1px solid #2e2c3d')+';background:'+(!item.isAnnual&&!item.isVariable?'#6366f122':'#1a1826')+';color:'+(!item.isAnnual&&!item.isVariable?'#6366f1':'#7c7a90')+'">Monthly</button>'
+                      +'<button onclick="event.stopPropagation();updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'mode\',\'annual\')" style="padding:8px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer;border:'+(item.isAnnual&&!item.isVariable?'2px solid #6366f1':'1px solid #2e2c3d')+';background:'+(item.isAnnual&&!item.isVariable?'#6366f122':'#1a1826')+';color:'+(item.isAnnual&&!item.isVariable?'#6366f1':'#7c7a90')+'">Annual</button>'
+                      +'<button onclick="event.stopPropagation();updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'mode\',\'variable\')" style="padding:8px;border-radius:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:11px;cursor:pointer;border:'+(item.isVariable?'2px solid #fbbf24':'1px solid #2e2c3d')+';background:'+(item.isVariable?'#fbbf2422':'#1a1826')+';color:'+(item.isVariable?'#fbbf24':'#7c7a90')+'">Variable</button>'
                       +'</div>'
+                      +(item.isVariable?
+                        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">'
+                        +MONTHS_SHORT.map(function(mo,mi){var k=mo.toLowerCase();var v=(item.months&&item.months[k]!=null)?item.months[k]:'';var isPast=mi<=new Date().getMonth();return '<div><div style="font-size:10px;color:'+(isPast?'#7c7a90':'#4a4860')+';margin-bottom:2px">'+mo.toUpperCase()+'</div><input type="number" placeholder="0.00" value="'+v+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'month_'+k+'\',this.value)" style="background:#22202f;border:1px solid '+(isPast?'#2e2c3d':'#1e1c2a')+';border-radius:8px;padding:6px 8px;color:'+(isPast?'#f0eef8':'#4a4860')+';font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box"></div>';}).join('')
+                        +'</div>'
+                        +'<div style="margin-bottom:8px"><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
+                        +'<input type="number" placeholder="100" value="'+(item.pct!=null?item.pct:'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'pct\',this.value)" style="'+inp2Style+'"></div>'
+                      :
+                        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+                        +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">'+(item.isAnnual?'ANNUAL COST ($)':'MONTHLY COST ($)')+'</div>'
+                        +'<input type="number" placeholder="0.00" value="'+(item.monthly||'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'monthly\',this.value)" style="'+inp2Style+'"></div>'
+                        +'<div><div style="font-size:10px;color:#7c7a90;margin-bottom:4px">DEDUCTIBLE %</div>'
+                        +'<input type="number" placeholder="100" value="'+(item.pct!=null?item.pct:'')+'" onblur="updateDedItem(\''+cat.id+'\',\''+item.id+'\',\'pct\',this.value)" style="'+inp2Style+'"></div>'
+                        +'</div>'
+                      )
                       +(ded>0?
                         '<div style="background:#22202f;border-radius:10px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-                        +'<div><div style="font-size:10px;color:#7c7a90">Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+ded.toFixed(2)+'</div></div>'
-                        +'<div><div style="font-size:10px;color:#7c7a90">Annual Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+(ded*12).toFixed(2)+'</div></div>'
+                        +'<div><div style="font-size:10px;color:#7c7a90">Avg Monthly Deduction</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+ded.toFixed(2)+'</div></div>'
+                        +'<div><div style="font-size:10px;color:#7c7a90">Projected Annual</div><div style="font-size:15px;font-weight:800;color:#4ade80">$'+(ded*12).toFixed(2)+'</div></div>'
                         +'</div>'
                       :'')
                       +'</div>'

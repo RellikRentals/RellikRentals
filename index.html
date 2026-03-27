@@ -875,10 +875,13 @@ function delMileage(id){return fsDel('users/'+S.user.uid+'/mileage/'+id);}
 
 function subscribeManagerData(uid,ap){
   ap=ap||[];
+  console.log('[MGR] subscribeManagerData called. uid:',uid,'ap:',JSON.stringify(ap));
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){
     var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    console.log('[MGR] tenants raw:',all.length,'ap:',JSON.stringify(ap));
     S.managerTenants=ap.length===0?[]:all.filter(function(t){return ap.indexOf(t.property||'')!==-1;});
+    console.log('[MGR] managerTenants filtered:',S.managerTenants.length);
     render();
   }));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){

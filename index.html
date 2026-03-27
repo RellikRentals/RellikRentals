@@ -256,7 +256,7 @@ function subscribeTenantPortal(email){
         subscribeWorkerShifts(S.tenantProfile);
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid&&!prevMgr){
-        subscribeManagerData(S.tenantProfile.landlordUid);
+        subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
         subscribeWorkerShifts(S.tenantProfile);
       }
       // Also subscribe if already has role but hasn't subscribed yet
@@ -267,7 +267,7 @@ function subscribeTenantPortal(email){
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid&&!S._mgr_subscribed){
         S._mgr_subscribed=true;
-        subscribeManagerData(S.tenantProfile.landlordUid);
+        subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
         subscribeWorkerShifts(S.tenantProfile);
       }
     }
@@ -869,9 +869,9 @@ function subscribeMileage(uid){
 function saveMileage(m){return fsSet('users/'+S.user.uid+'/mileage/'+m.id,m);}
 function delMileage(id){return fsDel('users/'+S.user.uid+'/mileage/'+id);}
 
-function subscribeManagerData(uid){
+function subscribeManagerData(uid,ap){
+  ap=ap||[];
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
-  var ap=(S.tenantProfile&&S.tenantProfile.assignedProperties)||[];
   _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){
     var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
     S.managerTenants=ap.length===0?[]:all.filter(function(t){return ap.indexOf(t.property||'')!==-1;});

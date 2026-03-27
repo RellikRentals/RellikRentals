@@ -2823,7 +2823,12 @@ function initApp(){
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
         S.isTenant=false; subscribeLandlord(user.uid);
       }else{
-        S.isTenant=true; subscribeTenantPortal(user.email.toLowerCase());
+        S.isTenant=true;
+        // Write UID to tenantProfile so security rules can look up by UID
+        var f2=fb();
+        var tpRef=f2.doc(f2.db,'tenantProfiles/'+pid(user.email.toLowerCase()));
+        f2.setDoc(tpRef,{uid:user.uid},{merge:true}).catch(function(e){console.warn('UID write failed:',e);});
+        subscribeTenantPortal(user.email.toLowerCase());
       }
       initNotifications();
     }else{

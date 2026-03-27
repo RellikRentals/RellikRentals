@@ -1231,9 +1231,20 @@ function toggleMaintenanceAccess(id){
   var newVal=!t.canMaintenance;
   var updated=Object.assign({},t,{canMaintenance:newVal});
   saveTenant(updated);
-  // Direct write to tenantProfiles for immediate effect
   var f=fb();
   f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canMaintenance:newVal},{merge:true});
+  // Keep managerIndex in sync
+  var tpRef=f.doc(f.db,'tenantProfiles/'+pid(t.email));
+  f.getDoc(tpRef).then(function(snap){
+    if(snap.exists()&&snap.data().uid){
+      var miRef=f.doc(f.db,'managerIndex/'+snap.data().uid);
+      if(newVal){
+        f.setDoc(miRef,{uid:snap.data().uid,landlordUid:S.user.uid,canMaintenance:true,canPropertyManager:snap.data().canPropertyManager||false},{merge:true});
+      } else {
+        f.setDoc(miRef,{canMaintenance:false},{merge:true});
+      }
+    }
+  }).catch(function(){});
 }
 function togglePropertyManagerAccess(id){
   var t=S.tenants.find(function(x){return x.id===id;});
@@ -1241,9 +1252,20 @@ function togglePropertyManagerAccess(id){
   var newVal=!t.canPropertyManager;
   var updated=Object.assign({},t,{canPropertyManager:newVal});
   saveTenant(updated);
-  // Direct write to tenantProfiles for immediate effect
   var f=fb();
   f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canPropertyManager:newVal},{merge:true});
+  // Keep managerIndex in sync
+  var tpRef2=f.doc(f.db,'tenantProfiles/'+pid(t.email));
+  f.getDoc(tpRef2).then(function(snap){
+    if(snap.exists()&&snap.data().uid){
+      var miRef=f.doc(f.db,'managerIndex/'+snap.data().uid);
+      if(newVal){
+        f.setDoc(miRef,{uid:snap.data().uid,landlordUid:S.user.uid,canPropertyManager:true,canMaintenance:snap.data().canMaintenance||false},{merge:true});
+      } else {
+        f.setDoc(miRef,{canPropertyManager:false},{merge:true});
+      }
+    }
+  }).catch(function(){});
 }
 
 function saveBulletinPost(post){
@@ -2828,6 +2850,14 @@ function initApp(){
         var f2=fb();
         var tpRef=f2.doc(f2.db,'tenantProfiles/'+pid(user.email.toLowerCase()));
         f2.setDoc(tpRef,{uid:user.uid},{merge:true}).catch(function(e){console.warn('UID write failed:',e);});
+        // Write managerIndex doc keyed by UID for security rule lookups
+        var miRef=f2.doc(f2.db,'managerIndex/'+user.uid);
+        f2.getDoc(miRef).then(function(snap){
+          if(snap.exists()){
+            // Update uid field in case it changed
+            f2.setDoc(miRef,{uid:user.uid},{merge:true}).catch(function(e){console.warn('managerIndex update failed:',e);});
+          }
+        }).catch(function(){});
         subscribeTenantPortal(user.email.toLowerCase());
       }
       initNotifications();

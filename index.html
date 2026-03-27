@@ -259,16 +259,20 @@ function subscribeTenantPortal(email){
         subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
         subscribeWorkerShifts(S.tenantProfile);
       }
-      // Also subscribe if already has role but hasn't subscribed yet
+      // Also subscribe if already has role but hasn't subscribed yet, or assignedProperties changed
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid&&!(S.todoItems&&S.todoItems.length>=0&&S._maint_subscribed)){
         S._maint_subscribed=true;
         subscribeTodos(S.tenantProfile.landlordUid);
         subscribeWorkerShifts(S.tenantProfile);
       }
-      if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid&&!S._mgr_subscribed){
-        S._mgr_subscribed=true;
-        subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
-        subscribeWorkerShifts(S.tenantProfile);
+      if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid){
+        var newAp=JSON.stringify(S.tenantProfile.assignedProperties||[]);
+        if(!S._mgr_subscribed||S._mgr_ap!==newAp){
+          S._mgr_subscribed=true;
+          S._mgr_ap=newAp;
+          subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
+          subscribeWorkerShifts(S.tenantProfile);
+        }
       }
     }
     render();

@@ -801,7 +801,7 @@ function addAdminNoteItem(catId,text,priority){if(!text)return;S.adminNoteCatego
 function toggleAdminNoteItem(catId,itemId){S.adminNoteCategories=(S.adminNoteCategories||[]).map(function(c){if(c.id!==catId)return c;return Object.assign({},c,{items:(c.items||[]).map(function(i){return i.id===itemId?Object.assign({},i,{done:!i.done}):i;})});});saveAdminNotes();render();}
 function delAdminNoteItem(catId,itemId){S.adminNoteCategories=(S.adminNoteCategories||[]).map(function(c){if(c.id!==catId)return c;return Object.assign({},c,{items:(c.items||[]).filter(function(i){return i.id!==itemId;})});});saveAdminNotes();render();}
 
-
+function saveNetWorth(){
   if(!S.user)return;
   fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther,crypto:S.netWorthCrypto});
 }

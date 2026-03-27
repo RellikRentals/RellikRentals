@@ -162,11 +162,11 @@ var S = {
   authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
-  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{},
+  collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
   payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false,
-  dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3,
+  dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3, dispTodos:5,
   mgCollapsed:{todos:true,tenants:true,requests:true,expenses:true},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
   sheet:null, sheetData:{},
@@ -184,6 +184,7 @@ function subscribeLandlord(uid){
   unsub();
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   loadDisplayPrefs(uid);
+  loadAdminNotes(uid);
   _unsubs.push(snap(q(col(db,'users/'+uid+'/tenants')),function(s){S.tenants=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});if(S._subscribeYTDReceipts){S.ytdRentReceipts=[];S._subscribeYTDReceipts();}render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/receipts')),function(s){S.receipts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
   _unsubs.push(snap(q(col(db,'users/'+uid+'/properties')),function(s){S.properties=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});render();}));
@@ -519,8 +520,8 @@ function doEditUtil(){
 }
 function saveUtil(u,mk){return fsSet('users/'+S.user.uid+'/util_'+(mk||monthKey())+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
-function saveDisplayPrefs(){fsSet('users/'+S.user.uid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases});}
-function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;render();}}catch(e){}}).catch(function(){});}catch(e){}}
+function saveDisplayPrefs(){fsSet('users/'+S.user.uid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases,dispTodos:S.dispTodos});}
+function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;S.dispTodos=p.dispTodos||5;render();}}catch(e){}}).catch(function(){});}catch(e){}}
 function toggleUtilLock(id){
   var u=S.utilities.find(function(x){return x.id===id;});
   if(!u)return;
@@ -677,7 +678,7 @@ function addShoppingItem(textArg){
   var qty=parseInt(S.shoppingQty)||1;
   var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
   if(!uid)return;
-  fsSet('users/'+uid+'/shopping/'+mkid(),{text:text,qty:qty,ordered:false,createdAt:new Date().toISOString()});
+  fsSet('users/'+uid+'/shopping/'+mkid(),{text:text,qty:qty,ordered:false,store:'',createdAt:new Date().toISOString()});
   S.shoppingInput='';S.shoppingQty='';render();
 }
 function toggleShoppingItem(id){
@@ -686,6 +687,13 @@ function toggleShoppingItem(id){
   var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
   if(!uid)return;
   fsSet('users/'+uid+'/shopping/'+id,Object.assign({},item,{ordered:!item.ordered}));
+}
+function setShoppingStore(id,store){
+  var item=S.shoppingItems.find(function(x){return x.id===id;});
+  if(!item)return;
+  var uid=S.isTenant?(S.tenantProfile&&S.tenantProfile.landlordUid):S.user.uid;
+  if(!uid)return;
+  fsSet('users/'+uid+'/shopping/'+id,Object.assign({},item,{store:store}));
 }
 function delShoppingItem(id){
   if(S.isTenant)return;
@@ -785,7 +793,15 @@ function updateDedItem(catId,itemId,field,val){
   render();
 }
 
-function saveNetWorth(){
+function saveAdminNotes(){if(!S.user)return;fsSet('users/'+S.user.uid+'/settings/adminNotes',{categories:S.adminNoteCategories||[]});}
+function loadAdminNotes(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/adminNotes')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();if(p.categories)S.adminNoteCategories=p.categories;render();}}catch(e){}}).catch(function(){});}catch(e){}}
+function addAdminNoteCategory(){var label=(prompt('Category name:')||'').trim();if(!label)return;S.adminNoteCategories=S.adminNoteCategories||[];S.adminNoteCategories.push({id:'anc_'+Date.now(),label:label,items:[]});saveAdminNotes();render();}
+function delAdminNoteCategory(id){if(!confirm('Delete this category and all its notes?'))return;S.adminNoteCategories=(S.adminNoteCategories||[]).filter(function(c){return c.id!==id;});saveAdminNotes();render();}
+function addAdminNoteItem(catId,text,priority){if(!text)return;S.adminNoteCategories=(S.adminNoteCategories||[]).map(function(c){if(c.id!==catId)return c;var items=c.items||[];items.push({id:'ani_'+Date.now(),text:text,priority:priority||'low',done:false});return Object.assign({},c,{items:items});});saveAdminNotes();render();}
+function toggleAdminNoteItem(catId,itemId){S.adminNoteCategories=(S.adminNoteCategories||[]).map(function(c){if(c.id!==catId)return c;return Object.assign({},c,{items:(c.items||[]).map(function(i){return i.id===itemId?Object.assign({},i,{done:!i.done}):i;})});});saveAdminNotes();render();}
+function delAdminNoteItem(catId,itemId){S.adminNoteCategories=(S.adminNoteCategories||[]).map(function(c){if(c.id!==catId)return c;return Object.assign({},c,{items:(c.items||[]).filter(function(i){return i.id!==itemId;})});});saveAdminNotes();render();}
+
+
   if(!S.user)return;
   fsSet('users/'+S.user.uid+'/settings/netWorth',{tfsa:S.netWorthTFSA,rrsp:S.netWorthRRSP,other:S.netWorthOther,crypto:S.netWorthCrypto});
 }
@@ -1526,6 +1542,7 @@ function renderSheet(){
   else if(S.sheet==='changelog'){
     title='What\'s New';
     var versions=[
+      {v:'4.4.2',items:['Admin Notes — private categorized task board accessible from home screen','Variable monthly deductibles — enter each month individually for accurate YTD tracking','Shopping list now groups by store — assign a store to any item after adding','Todo list display preference added to Settings','Manager dashboard data now fully scoped to assigned properties']},
       {v:'4.4.1',items:['Manager and maintenance dashboards now load correctly on login','Crypto field added to net worth snapshot','Utilities now have edit pen — disabled when locked','Category-based deductibles with monthly/annual toggle','Tenant dashboard redesigned — rent status front and centre','Duplicate receipt detection','Maintenance log — auto-logs todo completions','Custom deductibles with persist across sessions','The observer does not collapse the wave function. The wave function was always already collapsed — the observer just arrives late to the reading.']},
       {v:'4.4.1',items:['Manager and maintenance dashboards now load data correctly on login','Crypto field added to net worth snapshot','Utilities now have edit pen — disabled when locked','Monthly/annual toggle on deductible items fixed','Tenant portal subscription logic improved — roles activate immediately','The observer does not collapse the wave function. It was always already collapsed — the observer simply arrives late to its own reading.']},
       {v:'4.4.0',items:['Net worth snapshot — property values, TFSA, RRSP, mortgages, capital assets all in one view','Year-end PDF export — one tap CPA-ready statement','Mortgage rate history — log rate changes with effective dates','Bi-weekly mortgage payment support','Appraised value per mortgage for net worth calculation','Todo list priority colours — Low, Medium, High','TFSA and RRSP balances now persist between sessions','Maintenance log — permanent record of property tasks','Duplicate receipt detection','Deduction checklist now collapsible','Identified potential artifacts consistent with simulated environment theory']},
@@ -2096,7 +2113,7 @@ function _doRender(){
       root.innerHTML='<div id="app"><div class="scroll">'+bph+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
     }
-    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.1</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div>'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+    root.innerHTML='<div id="app"><div class="scroll"><div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Tenant Portal</div><div style="font-size:22px;font-weight:800">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.2</span><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px">'+ICO.logout+'</button></div></div><div>'+ph+'</div><div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
     return;
   }
 
@@ -2171,11 +2188,52 @@ function _doRender(){
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
     // ── Quick Action Screen ────────────────────────────────────────
+    if(!S.isTenant && S.adminNotesPage){
+      var anCats=S.adminNoteCategories||[];
+      var anPriorityColors={low:'#f0eef8',medium:'#fbbf24',high:'#f87171'};
+      var anh='<div class="top-bar"><button onclick="S.adminNotesPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">📋 Admin Notes</div><button onclick="addAdminNoteCategory()" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:6px 12px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Category</button></div>'
+        +'<div style="padding:0 16px">'
+        +(anCats.length===0?'<div style="text-align:center;color:#7c7a90;padding:60px 0"><div style="font-size:36px;margin-bottom:12px">📋</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No categories yet</div><div style="font-size:13px">Tap + Category to get started</div></div>'
+          :anCats.map(function(cat){
+            var collapsed=S.adminNoteCatCollapsed[cat.id];
+            var itemCount=(cat.items||[]).length;
+            var doneCount=(cat.items||[]).filter(function(i){return i.done;}).length;
+            return '<div class="card" style="padding:0;margin-bottom:8px">'
+              +'<div style="display:flex;align-items:center;padding:12px 16px;cursor:pointer;gap:8px" onclick="var cc=S.adminNoteCatCollapsed||{};cc[\''+cat.id+'\']=!cc[\''+cat.id+'\'];S.adminNoteCatCollapsed=cc;render()">'
+              +'<div style="flex:1"><div style="font-size:14px;font-weight:800">'+esc(cat.label)+'</div>'
+              +(itemCount>0?'<div style="font-size:11px;color:#7c7a90;margin-top:1px">'+doneCount+'/'+itemCount+' done</div>':'')
+              +'</div>'
+              +'<button onclick="event.stopPropagation();delAdminNoteCategory(\''+cat.id+'\')" style="background:none;border:none;cursor:pointer;color:#f87171;padding:4px">'+ICO.trash+'</button>'
+              +'<span style="color:#7c7a90;font-size:14px">'+(collapsed?'+':'−')+'</span>'
+              +'</div>'
+              +(!collapsed?
+                (cat.items||[]).map(function(item){
+                  return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #2e2c3d">'
+                    +'<div onclick="toggleAdminNoteItem(\''+cat.id+'\',\''+item.id+'\')" style="width:18px;height:18px;border-radius:5px;border:2px solid '+(item.done?'#8b5cf6':'#2e2c3d')+';background:'+(item.done?'#8b5cf6':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(item.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+                    +'<div style="width:8px;height:8px;border-radius:50%;background:'+(anPriorityColors[item.priority]||'#f0eef8')+';flex-shrink:0"></div>'
+                    +'<span style="flex:1;font-size:13px;'+(item.done?'text-decoration:line-through;color:#4a4860':'color:#f0eef8')+'">'+esc(item.text)+'</span>'
+                    +'<button onclick="delAdminNoteItem(\''+cat.id+'\',\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>'
+                    +'</div>';
+                }).join('')
+                +'<div style="border-top:1px solid #2e2c3d;padding:10px 16px">'
+                +'<div id="anInput_'+cat.id+'" style="display:flex;gap:8px;align-items:center">'
+                +'<input id="anText_'+cat.id+'" placeholder="Add note..." onkeydown="if(event.key===\'Enter\'){var t=this.value.trim();if(t){addAdminNoteItem(\''+cat.id+'\',t,document.getElementById(\'anPri_'+cat.id+'\').value);this.value=\'\';}}" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/>'
+                +'<select id="anPri_'+cat.id+'" style="background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px;color:#f0eef8;font-size:12px;font-family:Nunito,sans-serif"><option value="low">Low</option><option value="medium">Med</option><option value="high">High</option></select>'
+                +'<button onclick="var t=document.getElementById(\'anText_'+cat.id+'\').value.trim();if(t){addAdminNoteItem(\''+cat.id+'\',t,document.getElementById(\'anPri_'+cat.id+'\').value);document.getElementById(\'anText_'+cat.id+'\').value=\'\'}" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:8px 12px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button>'
+                +'</div></div>'
+              :'')
+              +'</div>';
+          }).join(''))
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+anh+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
+      return;
+    }
+
     if(!S.isTenant && S.quickMode){
       c='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17">'
         +'<div style="padding:24px 20px 8px;display:flex;justify-content:space-between;align-items:center">'
         +'<div><div style="font-size:12px;color:#7c7a90;font-weight:600;letter-spacing:1px">RELLIKRENTALS</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Quick Actions</div></div>'
-        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.1</span>'
+        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.2</span>'
         +'</div>'
         +'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:20px">'
         +'<button onclick="playTap(\'camera\');document.getElementById(\'fi\').click()" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
@@ -2199,11 +2257,14 @@ function _doRender(){
         +'</button>'
         +'</div>'
         +'</div>'
+        +'<div style="padding:0 20px 16px">'
+        +'<button onclick="S.adminNotesPage=true;render()" style="width:100%;background:#8b5cf611;border:1px solid #8b5cf633;border-radius:12px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📋 Admin Notes</button>'
+        +'</div>'
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
       return;
     }
-    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.1</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
+    c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.4.2</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown
       +'<div style="padding:0 16px">'
       +'<div class="hero"><div style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;margin-bottom:6px">'+(S.selectedProperty==='all'?'TOTAL RENT INCOME':'RENT INCOME · '+esc(S.selectedProperty).toUpperCase())+'</div>'
@@ -2560,14 +2621,15 @@ function _doRender(){
       +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':
         '<div style="margin-bottom:8px">'+'<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" placeholder="Add a task..." value="'+(S.todoInput||'')+'" oninput="S.todoInput=this.value" onkeydown="if(event.key===\'Enter\')addTodo()" style="flex:1;margin:0;font-size:12px;padding:6px 10px"/>'+'<button onclick="S.showPriorityPicker=!S.showPriorityPicker;render()" style="background:'+(S.todoPriority==='high'?'#f8717122':S.todoPriority==='medium'?'#fbbf2422':'#22202f')+';border:1px solid '+(S.todoPriority==='high'?'#f87171':S.todoPriority==='medium'?'#fbbf24':'#2e2c3d')+';border-radius:10px;padding:6px 10px;color:'+(S.todoPriority==='high'?'#f87171':S.todoPriority==='medium'?'#fbbf24':'#7c7a90')+';font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">⚑</button>'+'<button onclick="addTodo()" style="background:#6366f1;border:none;border-radius:10px;padding:6px 12px;color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button></div>'+(S.showPriorityPicker?'<div style="display:flex;gap:6px;margin-bottom:6px">'+'<button onclick="S.todoPriority=\'low\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='low'?'#f0eef8':'#2e2c3d')+';background:'+(S.todoPriority==='low'?'#f0eef822':'#1a1826')+';color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Low</button>'+'<button onclick="S.todoPriority=\'medium\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='medium'?'#fbbf24':'#2e2c3d')+';background:'+(S.todoPriority==='medium'?'#fbbf2422':'#1a1826')+';color:#fbbf24;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Medium</button>'+'<button onclick="S.todoPriority=\'high\';S.showPriorityPicker=false;render()" style="flex:1;padding:6px;border-radius:8px;border:1px solid '+(S.todoPriority==='high'?'#f87171':'#2e2c3d')+';background:'+(S.todoPriority==='high'?'#f8717122':'#1a1826')+';color:#f87171;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">High</button>'+'</div>':'')+'</div>')
       +(S.todoItems.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:4px 0">No tasks yet</div>'
-        :S.todoItems.map(function(t){
+        :S.todoItems.slice(0,S.showAllTodos?9999:S.dispTodos).map(function(t){
           return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #2e2c3d">'
             +'<div onclick="toggleTodo(\''+t.id+'\')" style="width:17px;height:17px;border-radius:5px;border:2px solid '+(t.done?'#6366f1':'#2e2c3d')+';background:'+(t.done?'#6366f1':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(t.done?'<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
             +'<span style="flex:1;font-size:12px;'+(t.done?'text-decoration:line-through;color:#7c7a90':t.priority==='high'?'color:#f87171;font-weight:700':t.priority==='medium'?'color:#fbbf24;font-weight:700':'color:#f0eef8')+'">'+esc(t.text)+'</span>'
             +(S.tenantProfile&&S.tenantProfile.canMaintenance?'':'<button onclick="delTodo(\''+t.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>')
             +'</div>';
-        }).join(''))
-      +'</div>'
+        }).join('')
+        +(S.todoItems.length>S.dispTodos?'<div style="text-align:center;padding:6px 0"><button onclick="S.showAllTodos=!S.showAllTodos;render()" style="background:#6366f122;border:none;border-radius:10px;padding:4px 12px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllTodos?'Show Less':'View All '+S.todoItems.length+' tasks')+'</button></div>':'')
+      )+'</div>'
       +(allReqs.length===0?'<div style="text-align:center;color:#7c7a90;padding:40px 0"><div style="font-size:36px;margin-bottom:12px">🔧</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No requests yet</div><div style="font-size:13px">Tenant requests will appear here</div></div>'
         :allReqs.map(function(r){
           var urgColor=r.urgency==='High'?'#f87171':r.urgency==='Medium'?'#fbbf24':'#4ade80';
@@ -2633,7 +2695,7 @@ function _doRender(){
       // Display Preferences
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">DISPLAY PREFERENCES</div>'
       +'<div class="card" style="padding:0">'
-      +[['Receipts shown','dispReceipts',S.dispReceipts],['Mileage entries shown','dispMileage',S.dispMileage],['Utilities shown','dispUtils',S.dispUtils],['Leases shown','dispLeases',S.dispLeases],['Tenants shown','dispTenants',S.dispTenants]]
+      +[['Receipts shown','dispReceipts',S.dispReceipts],['Mileage entries shown','dispMileage',S.dispMileage],['Utilities shown','dispUtils',S.dispUtils],['Leases shown','dispLeases',S.dispLeases],['Tenants shown','dispTenants',S.dispTenants],['Todos shown','dispTodos',S.dispTodos]]
       .map(function(row,i){
         return '<div class="card-row" style="padding:12px 16px'+(i===0?'':';border-top:1px solid #2e2c3d')+'">'
           +'<span style="font-size:14px;color:#f0eef8">'+row[0]+'</span>'
@@ -2701,7 +2763,7 @@ function _doRender(){
       // About section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
       +'<div class="card" style="padding:0">'
-      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.4.1</span></div>'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v4.4.2</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
       +'</div>'
@@ -2735,13 +2797,32 @@ function _doRender(){
       c='<div class="top-bar"><button onclick="S.showShopping=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div style="font-size:18px;font-weight:800;flex:1;margin-left:8px">🛒 Shopping List</div></div>'
         +'<div style="padding:0 16px">'
         +(canEdit?'<div style="display:flex;gap:8px;margin-bottom:16px"><input placeholder="Qty" value="'+esc(S.shoppingQty||'')+'" oninput="S.shoppingQty=this.value" onkeydown="if(event.key===\'Enter\')document.getElementById(\'shopInput\').focus()" style="width:56px;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 10px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px;text-align:center"/><input id="shopInput" placeholder="Add item..." value="'+esc(S.shoppingInput||'')+'" oninput="S.shoppingInput=this.value" onkeydown="if(event.key===\'Enter\')addShoppingItem()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 14px;color:#f0eef8;font-family:Nunito,sans-serif;font-size:14px"/><button onclick="addShoppingItem()" style="background:#6366f1;border:none;border-radius:12px;padding:10px 16px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button></div>':'')
-        +'<div class="card" style="padding:0">'
+        +'<div>'
         +(S.shoppingItems.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0;font-size:14px">No items yet</div>'
-          :S.shoppingItems.map(function(item){return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2e2c3d">'
-            +'<div onclick="'+(canEdit?'toggleShoppingItem(\''+item.id+'\')':'')+'" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(item.ordered?'#4ade80':'#2e2c3d')+';background:'+(item.ordered?'#4ade80':'transparent')+';cursor:'+(canEdit?'pointer':'default')+';flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(item.ordered?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
-            +'<span style="flex:1;font-size:14px;font-weight:600;'+(item.ordered?'text-decoration:line-through;color:#7c7a90':'color:#f0eef8')+'">'+(item.qty?'<span style="color:#6366f1;margin-right:6px">'+item.qty+'×</span>':'')+esc(item.text)+'</span>'
-            +(isLandlord?'<button onclick="delShoppingItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>':'')
-            +'</div>';}).join(''))
+          :(function(){
+            // Group by store
+            var groups={};
+            S.shoppingItems.forEach(function(item){
+              var s=item.store||'';
+              if(!groups[s])groups[s]=[];
+              groups[s].push(item);
+            });
+            var storeKeys=Object.keys(groups).sort(function(a,b){return a===''?1:b===''?-1:a.localeCompare(b);});
+            return storeKeys.map(function(store){
+              var items=groups[store];
+              return (store?'<div style="font-size:10px;font-weight:800;color:#8b5cf6;letter-spacing:1px;padding:10px 16px 4px">'+esc(store.toUpperCase())+'</div>':'')
+                +'<div class="card" style="padding:0;margin-bottom:8px">'
+                +items.map(function(item){
+                  return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #2e2c3d">'
+                    +'<div onclick="'+(canEdit?'toggleShoppingItem(\''+item.id+'\')':'')+'" style="width:22px;height:22px;border-radius:6px;border:2px solid '+(item.ordered?'#4ade80':'#2e2c3d')+';background:'+(item.ordered?'#4ade80':'transparent')+';cursor:'+(canEdit?'pointer':'default')+';flex-shrink:0;display:flex;align-items:center;justify-content:center">'+(item.ordered?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+                    +'<span style="flex:1;font-size:14px;font-weight:600;'+(item.ordered?'text-decoration:line-through;color:#7c7a90':'color:#f0eef8')+'">'+(item.qty?'<span style="color:#6366f1;margin-right:6px">'+item.qty+'×</span>':'')+esc(item.text)+'</span>'
+                    +(isLandlord?'<input placeholder="Store" value="'+esc(item.store||'')+'" onblur="setShoppingStore(\''+item.id+'\',this.value)" style="width:90px;background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:4px 8px;color:#7c7a90;font-size:11px;font-family:Nunito,sans-serif;outline:none"/>':'')
+                    +(isLandlord?'<button onclick="delShoppingItem(\''+item.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button>':'')
+                    +'</div>';
+                }).join('')
+                +'</div>';
+            }).join('');
+          })())
         +'</div></div>';
       root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>'+nav+'</div>';
       return;

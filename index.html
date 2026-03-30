@@ -375,7 +375,7 @@ function generateYearEndPDF(){
   var ytdUtil=S.ytdUtilities?S.ytdUtilities.filter(function(u){return (u.date||'').indexOf(String(curY))!==-1;}).reduce(function(a,u){return a+(Number(u.amount)||0);},0):0;
   var totalKm=S.mileageLog.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
   var mileDeduction=totalKm<=5000?totalKm*0.73:(5000*0.73)+((totalKm-5000)*0.67);
-  var mortgageInterest=S.mortgages.filter(function(m){return (m.property||'').indexOf('Personal')===-1;}).reduce(function(a,m){return a+(Number(m.annualInterest)||0);},0);
+  var mortgageInterest=S.mortgages.filter(function(m){var lp=S.properties.find(function(p){return p.name===m.property;});return lp?lp.isPersonal!==true:m.isPersonal!==true;}).reduce(function(a,m){return a+(Number(m.annualInterest)||0);},0);
   var netIncome=ytdRent-ytdExp-ytdUtil-mileDeduction-mortgageInterest;
 
   section('INCOME & EXPENSES');
@@ -428,7 +428,8 @@ function generateYearEndPDF(){
   if(S.mortgages.length>0){
     section('MORTGAGE INTEREST DEDUCTIONS');
     S.mortgages.forEach(function(m){
-      var isPersonal=(m.property||'').indexOf('Personal')!==-1;
+      var linkedPropPDF=S.properties.find(function(p){return p.name===m.property;});
+      var isPersonal=linkedPropPDF?linkedPropPDF.isPersonal===true:m.isPersonal===true;
       row(m.property||'—',isPersonal?'(personal — not deductible)':'$'+Number(m.annualInterest||0).toFixed(2)+'/yr',isPersonal?[150,150,150]:[99,102,241]);
       subrow('Lender: '+(m.lender||'—')+'  |  Rate: '+m.rate+'%  |  Balance: $'+Number(m.principal||0).toFixed(2),'');
     });
@@ -490,7 +491,7 @@ function saveMortgage(d){
   var annualPayment=freq==='biweekly'?payment*26:payment*12;
   var rateHistory=d.rateHistory||[];
   var appraisedValue=Number(d.appraisedValue)||0;
-  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,rateHistory:rateHistory,appraisedValue:appraisedValue,updatedAt:new Date().toISOString()}));
+  fsSet('users/'+uid+'/mortgages/'+d.id,Object.assign({},d,{principal:principal,rate:rate,payment:payment,paymentFrequency:freq,monthlyInterest:monthlyInterest,annualInterest:annualInterest,annualPayment:annualPayment,rateHistory:rateHistory,appraisedValue:appraisedValue,isPersonal:d.isPersonal||false,officePercent:Number(d.officePercent)||0,updatedAt:new Date().toISOString()}));
 }
 function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.user.uid+'/mortgages/'+id);}
 
@@ -1465,10 +1466,13 @@ function renderSheet(){
   else if(S.sheet==='addProperty'||S.sheet==='editProperty'){
     var d=S.sheetData; var isEdit=S.sheet==='editProperty';
     title=(isEdit?'✏️ Edit':'🏢 Add')+' Property';
-    body='<div class="frow">'+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+inp('Number of Units','number',d.units||'','units')+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditProp()':'doSheetAddProp()')+'">'+(isEdit?'Save Changes':'Add Property')+'</button></div>';
+    var isPersP=d.isPersonal===true;
+    var persToggle='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2e2c3d;margin-bottom:4px"><span style="font-size:14px;font-weight:700;color:#f0eef8">Personal Residence</span><div onclick="S.sheetData.isPersonal=!S.sheetData.isPersonal;renderSheet()" style="width:48px;height:26px;border-radius:99px;background:'+(isPersP?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(isPersP?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+      +(isPersP?inp('Office Space %','number',d.officePercent||'','officePercent','e.g. 10'):'');
+    body='<div class="frow">'+persToggle+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+inp('Number of Units','number',d.units||'','units')+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditProp()':'doSheetAddProp()')+'">'+( isEdit?'Save Changes':'Add Property')+'</button></div>';
   }
-  else if(S.sheet==='editUtility'){
+    else if(S.sheet==='editUtility'){
     var u=S.sheetData;
     title='✏️ Edit Utility';
     body='<div class="frow">'+inp('Utility Name','text',u.name||'','name')+inp('Amount ($)','number',u.amount||'','amount','0.00')+'</div>';
@@ -2540,12 +2544,21 @@ function _doRender(){
         ?'<div class="card" style="text-align:center;color:#7c7a90;padding:20px"><div style="font-size:32px;margin-bottom:8px">🏦</div><div style="font-weight:700;color:#f0eef8;margin-bottom:4px">No mortgages yet</div><div style="font-size:12px">Track balances and interest for tax deductions and net worth</div></div>'
         :'<div class="card" style="padding:0">'
         +S.mortgages.map(function(m,i){
-          var isPersonal=(m.property||'').indexOf('Personal')!==-1;
+          var linkedProp=S.properties.find(function(p){return p.name===m.property;});
+          var isPersonal=linkedProp?linkedProp.isPersonal===true:m.isPersonal===true;
+          var offPct=linkedProp?Number(linkedProp.officePercent)||0:Number(m.officePercent)||0;
+          var monthlyDed=isPersonal&&offPct>0?(Number(m.monthlyInterest)||0)*offPct/100:0;
+          var annualDed=monthlyDed*12;
           return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
             +'<div style="flex:1;min-width:0">'
-            +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.property||'—')+'</div>'
+            +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.property||'—')+(isPersonal?' <span style="font-size:11px;color:#8b5cf6;font-weight:600">(Personal)</span>':'')+'</div>'
             +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(m.lender||'—')+' · '+m.rate+'% · '+fmtS(m.payment)+(m.paymentFrequency==='biweekly'?'/biweekly':'/mo')+(m.renewalDate?' · Renews '+m.renewalDate:'')+'</div>'
-            +(isPersonal?'':'<div style="margin-top:4px">'+pill('~'+fmtS(m.annualInterest||0)+'/yr deductible','#4ade80')+'</div>')
+            +(isPersonal?
+              '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">'
+              +pill('~'+fmtS(m.annualInterest||0)+'/yr total interest','#6366f1')
+              +(offPct>0?pill('~'+fmtS(annualDed)+'/yr deductible ('+offPct+'%)','#4ade80'):'')
+              +'</div>'
+            :'<div style="margin-top:4px">'+pill('~'+fmtS(m.annualInterest||0)+'/yr deductible','#4ade80')+'</div>')
             +'</div>'
             +'<div style="text-align:right;flex-shrink:0">'
             +'<div style="font-size:15px;font-weight:800;color:#6366f1">'+fmtS(m.principal)+'</div>'
@@ -2940,7 +2953,7 @@ function _doRender(){
       c='<div class="top-bar"><div class="page-title">Properties</div><button onclick="openSheet(\'addProperty\',{})" style="background:#6366f1;border:none;border-radius:12px;padding:8px 14px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:Nunito,sans-serif">'+ICO.plus+' Add</button></div>'
         +'<div style="padding:0 16px">'
         +(S.properties.length===0?'<div style="text-align:center;color:#7c7a90;padding:30px 0 20px"><div style="font-size:40px;margin-bottom:10px">🏢</div><div style="font-weight:700;color:#f0eef8;margin-bottom:6px">No properties yet</div><div style="font-size:13px">Add a property profile to get started</div></div>'
-          :S.properties.map(function(p){var tc=S.tenants.filter(function(t){return t.property===p.name;}).length;var mr=S.tenants.filter(function(t){return t.property===p.name;}).reduce(function(a,t){return a+Number(t.rent);},0);return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px"><div style="flex:1"><div style="font-size:17px;font-weight:800">'+esc(p.name)+'</div><div style="font-size:13px;color:#7c7a90;margin-top:2px">'+esc(p.address||'')+(p.city?', '+esc(p.city):'')+'</div></div><div style="display:flex;gap:8px"><button onclick="openSheet(\'editProperty\',JSON.parse(JSON.stringify(S.properties.find(function(x){return x.id===\''+p.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="confirmDelProp(\''+p.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div><div style="display:flex;gap:8px;margin-bottom:12px">'+pill((p.units||'?')+' units','#6366f1')+' '+pill(tc+' tenants','#4ade80')+(mr>0?' '+pill(fmtS(mr)+'/mo','#fbbf24'):'')+'</div>'+(p.notes?'<div style="font-size:13px;color:#7c7a90;background:#22202f;border-radius:10px;padding:10px 12px;margin-top:8px">'+esc(p.notes)+'</div>':'')+'</div>';}).join(''))
+          :S.properties.map(function(p){var tc=S.tenants.filter(function(t){return t.property===p.name;}).length;var mr=S.tenants.filter(function(t){return t.property===p.name;}).reduce(function(a,t){return a+Number(t.rent);},0);return '<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px"><div style="flex:1"><div style="font-size:17px;font-weight:800">'+esc(p.name)+(p.isPersonal?' <span style="font-size:11px;color:#8b5cf6;font-weight:600">(Personal)</span>':'')+'</div><div style="font-size:13px;color:#7c7a90;margin-top:2px">'+esc(p.address||'')+(p.city?', '+esc(p.city):'')+'</div></div><div style="display:flex;gap:8px"><button onclick="openSheet(\'editProperty\',JSON.parse(JSON.stringify(S.properties.find(function(x){return x.id===\''+p.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="confirmDelProp(\''+p.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div></div><div style="display:flex;gap:8px;margin-bottom:12px">'+pill((p.units||'?')+' units','#6366f1')+' '+pill(tc+' tenants','#4ade80')+(mr>0?' '+pill(fmtS(mr)+'/mo','#fbbf24'):'')+'</div>'+(p.notes?'<div style="font-size:13px;color:#7c7a90;background:#22202f;border-radius:10px;padding:10px 12px;margin-top:8px">'+esc(p.notes)+'</div>':'')+'</div>';}).join(''))
         +'</div>';
     }
   }

@@ -3075,7 +3075,7 @@ function showSplash(){
     +'</div>';
 
   // Welcome text
-  var welcomeHTML='<div class="welcome-text" id="splashWelcome" style="font-size:clamp(18px,5vw,32px);top:38%">Welcome Home 🏠</div>';
+  var welcomeHTML='<div class="welcome-text" id="splashWelcome" style="font-size:clamp(16px,4vw,28px);top:38%;max-width:70%;letter-spacing:2px">Welcome Home</div>';
 
   // Skip button
   var skipHTML='<button class="skip-btn" onclick="skipSplash()">Skip ›</button>';
@@ -3101,7 +3101,7 @@ function showSplash(){
     // Door swings open
     var panel=document.getElementById('splashDoorPanel');
     if(panel) panel.style.animation='doorSwing 0.8s ease-in-out forwards';
-  },4320);
+  },4820);
 
   var t3=setTimeout(function(){
     // Welcome text fades in
@@ -3110,9 +3110,13 @@ function showSplash(){
   },3600);
 
   var t4=setTimeout(function(){
-    // Fade out splash
-    if(el) el.style.animation='splashFadeOut 1.2s forwards';
-    setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);render();},1200);
+    // Rush into the door — zoom into darkness
+    var wrap=document.getElementById('tunnelWrap');
+    if(wrap){wrap.style.transition='transform 0.8s ease-in';wrap.style.transform='scale(4)';wrap.style.filter='brightness(0)';}
+    setTimeout(function(){
+      if(el) el.style.animation='splashFadeOut 0.4s forwards';
+      setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);render();},400);
+    },800);
   },6600);
 
   window._splashTimers=[t1,t2,t3,t4];

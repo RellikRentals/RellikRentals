@@ -3110,13 +3110,16 @@ function showSplash(){
   },3600);
 
   var t4=setTimeout(function(){
-    // Rush into the door — zoom into darkness
-    var wrap=document.getElementById('tunnelWrap');
-    if(wrap){wrap.style.transition='transform 0.8s ease-in';wrap.style.transform='scale(4)';wrap.style.filter='brightness(0)';}
+    // Create a black oval that expands from the door opening — rush through effect
+    var door=document.getElementById('splashDoor');
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:absolute;background:#0a0812;border-radius:50%;width:60px;height:80px;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);transition:transform 0.7s ease-in, border-radius 0.7s ease-in;z-index:5;';
+    el.appendChild(overlay);
+    setTimeout(function(){overlay.style.transform='translate(-50%,-50%) scale(40)';overlay.style.borderRadius='0';},50);
     setTimeout(function(){
-      if(el) el.style.animation='splashFadeOut 0.4s forwards';
-      setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);render();},400);
-    },800);
+      if(el&&el.parentNode)el.parentNode.removeChild(el);
+      render();
+    },750);
   },6600);
 
   window._splashTimers=[t1,t2,t3,t4];

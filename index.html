@@ -1714,7 +1714,7 @@ function renderSheet(){
     var d=S.sheetData;
     var isEditM=S.sheet==='editMortgage';
     title=(isEditM?'✏️ Edit':'🏦 Add')+' Mortgage';
-    var propOptionsM=S.properties.map(function(p){return p.name;}).concat(['430 Whitewood Ave (Personal)']);
+    var propOptionsM=S.properties.map(function(p){return p.name;});
     var propSelM='<div><label>Property</label><select onchange="S.sheetData.property=this.value"><option value="">— Select —</option>'+propOptionsM.map(function(n){return '<option value="'+esc(n)+'"'+(d.property===n?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></div>';
     var freq=d.paymentFrequency||'monthly';
     var freqToggle='<div><label>Payment Frequency</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">'

@@ -68,6 +68,26 @@ label{font-size:12px;color:#7c7a90;font-weight:600;display:block;margin-bottom:5
 .auth-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;background:#0f0f13}
 .auth-card{background:#1a1927;border:1px solid #2e2c3d;border-radius:24px;padding:28px 24px;width:100%;max-width:380px}
 .auth-error{background:#f8717122;border:1px solid #f8717133;border-radius:10px;padding:10px 14px;color:#f87171;font-size:13px;margin-bottom:14px}
+/* ── Splash Animation ─────────────────────────────────────── */
+#splash{position:fixed;inset:0;z-index:9999;background:#0a0812;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+#splash.fade-out{animation:splashFadeOut 1s forwards;}
+@keyframes splashFadeOut{to{opacity:0;pointer-events:none;}}
+.tunnel-wrap{width:100%;height:100%;position:relative;perspective:600px;display:flex;align-items:center;justify-content:center;}
+.tunnel-floor{position:absolute;bottom:0;left:0;right:0;height:55%;transform-style:preserve-3d;}
+.cobble-row{position:absolute;width:100%;display:flex;gap:2px;}
+.cobble{flex:1;border-radius:3px;border:1px solid rgba(255,255,255,0.08);}
+.mushroom{position:absolute;bottom:30%;display:flex;flex-direction:column;align-items:center;}
+.mush-cap{border-radius:50% 50% 0 0;}
+.mush-stem{background:rgba(255,255,255,0.6);border-radius:2px;}
+.door-frame{position:absolute;border:4px solid;border-radius:8px 8px 0 0;transform-origin:center bottom;display:flex;align-items:center;justify-content:center;}
+.door-panel{width:100%;height:100%;border-radius:6px 6px 0 0;transform-origin:left center;}
+.welcome-text{position:absolute;font-family:Nunito,sans-serif;font-weight:900;color:#fff;text-shadow:0 0 40px #8b5cf6,0 0 80px #6366f1;opacity:0;letter-spacing:-1px;text-align:center;}
+.skip-btn{position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:99px;padding:6px 16px;color:rgba(255,255,255,0.6);font-family:Nunito,sans-serif;font-size:12px;font-weight:700;cursor:pointer;z-index:10;}
+@keyframes tunnelPulse{0%,100%{filter:hue-rotate(0deg) brightness(1);}50%{filter:hue-rotate(40deg) brightness(1.2);}}
+@keyframes doorSwing{0%{transform:perspective(400px) rotateY(0deg);}100%{transform:perspective(400px) rotateY(-85deg);}}
+@keyframes welcomeFade{0%{opacity:0;transform:scale(0.8);}60%{opacity:1;transform:scale(1.05);}100%{opacity:1;transform:scale(1);}}
+@keyframes dashFade{0%{opacity:1;}100%{opacity:0;}}
+@keyframes tunnelZoom{0%{transform:scale(1);}100%{transform:scale(2.5);}}
 </style>
 </head>
 <body>
@@ -159,7 +179,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false,
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false}, tenantBulletinPage:false, tenantMaintenancePage:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
@@ -3000,11 +3020,118 @@ function _doRender(){
 }
 
 // ── Init ───────────────────────────────────────────────────────────
+function showSplash(){
+  S.splashDone=true;
+  var el=document.createElement('div');
+  el.id='splash';
+
+  // Build tunnel scene
+  var colors=['#ff00ff','#00ffff','#ffff00','#ff6600','#00ff88','#ff0088'];
+  var cobbleRows='';
+  for(var r=0;r<12;r++){
+    var scale=0.3+r*0.06;
+    var yPos=20+r*7;
+    var h=Math.max(8,r*5);
+    var cobbles='';
+    var count=3+Math.floor(r/2);
+    for(var c=0;c<count;c++){
+      var hue=Math.round((r*30+c*15)%360);
+      cobbles+='<div class="cobble" style="height:'+h+'px;background:hsl('+hue+',40%,'+(10+r*3)+'%);"></div>';
+    }
+    cobbleRows+='<div class="cobble-row" style="bottom:'+yPos+'%;left:'+(50-scale*50)+'%;width:'+(scale*100)+'%;gap:'+(scale*3)+'px">'+cobbles+'</div>';
+  }
+
+  // Mushrooms left and right
+  var mushHTML='';
+  var mushData=[
+    {side:'left',x:8,size:0.7,color:'#ff00ff',glow:'#ff00ff'},
+    {side:'left',x:18,size:0.4,color:'#00ffff',glow:'#00ffff'},
+    {side:'right',x:8,size:0.7,color:'#ffff00',glow:'#ffff00'},
+    {side:'right',x:18,size:0.45,color:'#ff6600',glow:'#ff6600'},
+    {side:'left',x:30,size:0.3,color:'#00ff88',glow:'#00ff88'},
+    {side:'right',x:30,size:0.35,color:'#ff0088',glow:'#ff0088'},
+  ];
+  mushData.forEach(function(m){
+    var xPos=m.side==='left'?m.x+'%':(100-m.x-8)+'%';
+    var capW=Math.round(60*m.size);
+    var capH=Math.round(35*m.size);
+    var stemH=Math.round(30*m.size);
+    var stemW=Math.round(12*m.size);
+    var dots='';
+    for(var d=0;d<3;d++){
+      dots+='<div style="position:absolute;width:'+Math.round(6*m.size)+'px;height:'+Math.round(6*m.size)+'px;background:rgba(255,255,255,0.8);border-radius:50%;top:'+(20+d*20)+'%;left:'+(15+d*25)+'%"></div>';
+    }
+    mushHTML+='<div class="mushroom" style="left:'+xPos+';bottom:28%">'
+      +'<div class="mush-cap" style="width:'+capW+'px;height:'+capH+'px;background:'+m.color+';box-shadow:0 0 '+Math.round(20*m.size)+'px '+m.glow+';position:relative">'+dots+'</div>'
+      +'<div class="mush-stem" style="width:'+stemW+'px;height:'+stemH+'px"></div>'
+      +'</div>';
+  });
+
+  // Door
+  var doorHTML='<div class="door-frame" id="splashDoor" style="width:80px;height:110px;bottom:30%;border-color:#8b5cf6;box-shadow:0 0 30px #8b5cf6,0 0 60px #6366f1;background:#1a0a2e;">'
+    +'<div class="door-panel" id="splashDoorPanel" style="background:linear-gradient(135deg,#2a1a4e,#1a0a2e);border:2px solid #6366f1">'
+    +'<div style="width:8px;height:8px;background:#fbbf24;border-radius:50%;position:absolute;right:8px;top:50%;box-shadow:0 0 8px #fbbf24"></div>'
+    +'</div>'
+    +'</div>';
+
+  // Welcome text
+  var welcomeHTML='<div class="welcome-text" id="splashWelcome" style="font-size:clamp(28px,8vw,52px)">Welcome Home 🏠</div>';
+
+  // Skip button
+  var skipHTML='<button class="skip-btn" onclick="skipSplash()">Skip ›</button>';
+
+  el.innerHTML='<div class="tunnel-wrap" id="tunnelWrap" style="animation:tunnelPulse 3s infinite">'
+    +'<div style="position:absolute;inset:0;background:linear-gradient(to bottom,#0a0812 0%,#1a0a2e 40%,#0a0812 100%)"></div>'
+    +'<div class="tunnel-floor">'+cobbleRows+'</div>'
+    +mushHTML
+    +doorHTML
+    +welcomeHTML
+    +skipHTML
+    +'</div>';
+
+  document.body.appendChild(el);
+
+  // Animation sequence
+  var t1=setTimeout(function(){
+    // Tunnel zooms in toward door
+    document.getElementById('tunnelWrap').style.animation='tunnelZoom 3s ease-in forwards, tunnelPulse 3s infinite';
+  },300);
+
+  var t2=setTimeout(function(){
+    // Door swings open
+    var panel=document.getElementById('splashDoorPanel');
+    if(panel) panel.style.animation='doorSwing 0.8s ease-in-out forwards';
+  },3000);
+
+  var t3=setTimeout(function(){
+    // Welcome text fades in
+    var w=document.getElementById('splashWelcome');
+    if(w) w.style.animation='welcomeFade 1s ease-out forwards';
+  },3600);
+
+  var t4=setTimeout(function(){
+    // Fade out splash
+    if(el) el.style.animation='splashFadeOut 1.2s forwards';
+    setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);render();},1200);
+  },5500);
+
+  window._splashTimers=[t1,t2,t3,t4];
+}
+
+function skipSplash(){
+  if(window._splashTimers) window._splashTimers.forEach(clearTimeout);
+  var el=document.getElementById('splash');
+  if(el&&el.parentNode) el.parentNode.removeChild(el);
+  render();
+}
+
 function initApp(){
   var f=fb();
   f.onAuthStateChanged(f.auth,function(user){
+    var wasLoggedOut=!S.user;
     S.user=user; S.authReady=true;
     if(user){
+      if(wasLoggedOut&&!S.splashDone) showSplash();
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
         S.isTenant=false; subscribeLandlord(user.uid);
       }else{

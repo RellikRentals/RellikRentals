@@ -480,6 +480,38 @@ function saveCapitalAsset(d){
 function delCapitalAsset(id){if(confirm('Delete this asset?'))fsDel('users/'+S.user.uid+'/capitalAssets/'+id);}
 
 // ── Mortgages ─────────────────────────────────────────────────────
+function calcMortgagePayments(d){
+  // Returns {balance, nextPaymentDate, daysUntilNext}
+  if(!d.lastPaymentDate||!d.principal||!d.rate||!d.payment) return null;
+  var freq=d.paymentFrequency||'monthly';
+  var intervalDays=freq==='biweekly'?14:30;
+  var today=new Date(); today.setHours(0,0,0,0);
+  var last=new Date(d.lastPaymentDate+'T00:00:00');
+  if(isNaN(last.getTime())) return null;
+  var balance=Number(d.principal)||0;
+  var rate=Number(d.rate)||0;
+  var payment=Number(d.payment)||0;
+  // Count payments since lastPaymentDate
+  var cursor=new Date(last);
+  while(true){
+    var next=new Date(cursor);
+    if(freq==='biweekly'){next.setDate(next.getDate()+14);}
+    else{next.setMonth(next.getMonth()+1);}
+    if(next>today) break;
+    var monthlyRate=rate/100/12;
+    var interestPortion=balance*monthlyRate*(freq==='biweekly'?14/30:1);
+    var principalPortion=Math.max(0,payment-interestPortion);
+    balance=Math.max(0,balance-principalPortion);
+    cursor=next;
+  }
+  // Next payment date
+  var nextDate=new Date(cursor);
+  if(freq==='biweekly'){nextDate.setDate(nextDate.getDate()+14);}
+  else{nextDate.setMonth(nextDate.getMonth()+1);}
+  var daysUntil=Math.round((nextDate-today)/(1000*60*60*24));
+  var nextStr=nextDate.toISOString().slice(0,10);
+  return {balance:Math.round(balance*100)/100,nextPaymentDate:nextStr,daysUntilNext:daysUntil};
+}
 function saveMortgage(d){
   var uid=S.user.uid;
   var principal=Number(d.principal)||0;
@@ -1736,7 +1768,7 @@ function renderSheet(){
         +(d._addingRate?'<div style="background:#22202f;border-radius:12px;padding:12px;margin-top:10px"><div style="font-size:11px;color:#7c7a90;margin-bottom:8px">NEW RATE ENTRY</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+inp('New Rate (%)','number',d._newRate||'','_newRate','e.g. 6.5')+inp('Effective Date','date',d._newRateDate||'','_newRateDate')+'</div><button onclick="doConfirmRateChange()" style="margin-top:8px;width:100%;background:#4ade8022;border:1px solid #4ade8033;border-radius:10px;padding:8px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Confirm Rate Change</button></div>':'')
         +'</div>';
     }
-    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Appraised Value ($)','number',d.appraisedValue||'','appraisedValue','Est. market value')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+rateHistHtml+'</div>';
+    body='<div class="frow">'+propSelM+freqToggle+inp('Lender','text',d.lender||'','lender','e.g. TD Bank, Scotiabank')+inp('Current Balance ($)','number',d.principal||'','principal','0.00')+inp('Appraised Value ($)','number',d.appraisedValue||'','appraisedValue','Est. market value')+inp('Interest Rate (%)','number',d.rate||'','rate','e.g. 5.25')+inp(payLabel,'number',d.payment||'','payment',payHint)+inp('Last Payment Date','date',d.lastPaymentDate||'','lastPaymentDate')+inp('Renewal Date','date',d.renewalDate||'','renewalDate')+intPreview+rateHistHtml+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetSaveMortgage()">'+( isEditM?'Save Changes':'Add Mortgage')+'</button></div>';
   }
 
@@ -2549,10 +2581,13 @@ function _doRender(){
           var offPct=linkedProp?Number(linkedProp.officePercent)||0:Number(m.officePercent)||0;
           var monthlyDed=isPersonal&&offPct>0?(Number(m.monthlyInterest)||0)*offPct/100:0;
           var annualDed=monthlyDed*12;
+          var calc=calcMortgagePayments(m);
+          var displayBalance=calc?calc.balance:Number(m.principal)||0;
           return '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px'+(i>0?';border-top:1px solid #2e2c3d':'')+'">'
             +'<div style="flex:1;min-width:0">'
             +'<div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(m.property||'—')+(isPersonal?' <span style="font-size:11px;color:#8b5cf6;font-weight:600">(Personal)</span>':'')+'</div>'
             +'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(m.lender||'—')+' · '+m.rate+'% · '+fmtS(m.payment)+(m.paymentFrequency==='biweekly'?'/biweekly':'/mo')+(m.renewalDate?' · Renews '+m.renewalDate:'')+'</div>'
+            +(calc?'<div style="font-size:11px;color:#fbbf24;margin-top:2px">Next payment: '+calc.nextPaymentDate+' <span style="color:'+(calc.daysUntilNext<=7?'#f87171':'#7c7a90')+'">('+(calc.daysUntilNext===0?'today':calc.daysUntilNext+' days')+')</span></div>':'')
             +(isPersonal?
               '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">'
               +pill('~'+fmtS(m.annualInterest||0)+'/yr total interest','#6366f1')
@@ -2561,8 +2596,8 @@ function _doRender(){
             :'<div style="margin-top:4px">'+pill('~'+fmtS(m.annualInterest||0)+'/yr deductible','#4ade80')+'</div>')
             +'</div>'
             +'<div style="text-align:right;flex-shrink:0">'
-            +'<div style="font-size:15px;font-weight:800;color:#6366f1">'+fmtS(m.principal)+'</div>'
-            +'<div style="font-size:10px;color:#7c7a90">balance</div>'
+            +'<div style="font-size:15px;font-weight:800;color:#6366f1">'+fmtS(displayBalance)+'</div>'
+            +'<div style="font-size:10px;color:#7c7a90">'+(calc?'est. balance':'balance')+'</div>'
             +'<div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">'
             +'<button onclick="openSheet(\'editMortgage\',JSON.parse(JSON.stringify(S.mortgages.find(function(x){return x.id===\''+m.id+'\';}) || {})))" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button>'
             +'<button onclick="delMortgage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'

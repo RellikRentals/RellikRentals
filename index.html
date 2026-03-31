@@ -3030,7 +3030,7 @@ function showSplash(){
   var cobbleRows='';
   for(var r=0;r<12;r++){
     var scale=0.3+r*0.06;
-    var yPos=20+r*7;
+    var yPos=28+r*7;
     var h=Math.max(8,r*5);
     var cobbles='';
     var count=3+Math.floor(r/2);
@@ -3061,21 +3061,21 @@ function showSplash(){
     for(var d=0;d<3;d++){
       dots+='<div style="position:absolute;width:'+Math.round(6*m.size)+'px;height:'+Math.round(6*m.size)+'px;background:rgba(255,255,255,0.8);border-radius:50%;top:'+(20+d*20)+'%;left:'+(15+d*25)+'%"></div>';
     }
-    mushHTML+='<div class="mushroom" style="left:'+xPos+';bottom:28%">'
+    mushHTML+='<div class="mushroom" style="left:'+xPos+';bottom:36%">'
       +'<div class="mush-cap" style="width:'+capW+'px;height:'+capH+'px;background:'+m.color+';box-shadow:0 0 '+Math.round(20*m.size)+'px '+m.glow+';position:relative">'+dots+'</div>'
       +'<div class="mush-stem" style="width:'+stemW+'px;height:'+stemH+'px"></div>'
       +'</div>';
   });
 
   // Door
-  var doorHTML='<div class="door-frame" id="splashDoor" style="width:80px;height:110px;bottom:30%;border-color:#8b5cf6;box-shadow:0 0 30px #8b5cf6,0 0 60px #6366f1;background:#1a0a2e;">'
+  var doorHTML='<div class="door-frame" id="splashDoor" style="width:80px;height:110px;bottom:38%;border-color:#8b5cf6;box-shadow:0 0 30px #8b5cf6,0 0 60px #6366f1;background:#1a0a2e;">'
     +'<div class="door-panel" id="splashDoorPanel" style="background:linear-gradient(135deg,#2a1a4e,#1a0a2e);border:2px solid #6366f1">'
     +'<div style="width:8px;height:8px;background:#fbbf24;border-radius:50%;position:absolute;right:8px;top:50%;box-shadow:0 0 8px #fbbf24"></div>'
     +'</div>'
     +'</div>';
 
   // Welcome text
-  var welcomeHTML='<div class="welcome-text" id="splashWelcome" style="font-size:clamp(28px,8vw,52px)">Welcome Home 🏠</div>';
+  var welcomeHTML='<div class="welcome-text" id="splashWelcome" style="font-size:clamp(18px,5vw,32px);top:38%">Welcome Home 🏠</div>';
 
   // Skip button
   var skipHTML='<button class="skip-btn" onclick="skipSplash()">Skip ›</button>';
@@ -3094,14 +3094,14 @@ function showSplash(){
   // Animation sequence
   var t1=setTimeout(function(){
     // Tunnel zooms in toward door
-    document.getElementById('tunnelWrap').style.animation='tunnelZoom 3s ease-in forwards, tunnelPulse 3s infinite';
-  },300);
+    document.getElementById('tunnelWrap').style.animation='tunnelZoom 3.6s ease-in forwards, tunnelPulse 3s infinite';
+  },360);
 
   var t2=setTimeout(function(){
     // Door swings open
     var panel=document.getElementById('splashDoorPanel');
     if(panel) panel.style.animation='doorSwing 0.8s ease-in-out forwards';
-  },3000);
+  },4320);
 
   var t3=setTimeout(function(){
     // Welcome text fades in
@@ -3113,7 +3113,7 @@ function showSplash(){
     // Fade out splash
     if(el) el.style.animation='splashFadeOut 1.2s forwards';
     setTimeout(function(){if(el&&el.parentNode)el.parentNode.removeChild(el);render();},1200);
-  },5500);
+  },6600);
 
   window._splashTimers=[t1,t2,t3,t4];
 }

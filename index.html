@@ -284,7 +284,15 @@ function subscribeTenantPortal(email){
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid&&!(S.todoItems&&S.todoItems.length>=0&&S._maint_subscribed)){
         S._maint_subscribed=true;
         subscribeTodos(S.tenantProfile.landlordUid);
-        subscribeWorkerShifts(S.tenantProfile);
+      }
+      // Subscribe worker shifts once email is confirmed
+      if((S.tenantProfile.canMaintenance||S.tenantProfile.canPropertyManager)&&S.tenantProfile.landlordUid&&S.tenantProfile.email){
+        var newWorkerEmail=S.tenantProfile.email.toLowerCase().trim();
+        if(!S._shifts_subscribed||S._shifts_email!==newWorkerEmail){
+          S._shifts_subscribed=true;
+          S._shifts_email=newWorkerEmail;
+          subscribeWorkerShifts(S.tenantProfile);
+        }
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid){
         var newAp=JSON.stringify(S.tenantProfile.assignedProperties||[]);

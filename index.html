@@ -645,8 +645,11 @@ function subscribeWorkerShifts(tp){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   var workerEmail=(tp.email||'').toLowerCase().trim();
   var myId=pid(workerEmail);
+  console.log('[SHIFTS] subscribeWorkerShifts. email:',workerEmail,'myId:',myId);
   _unsubs.push(snap(q(col(db,'users/'+tp.landlordUid+'/payroll')),function(s){
-    S.payrollShifts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});})
+    var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    console.log('[SHIFTS] raw:',all.length,'workerIds:',all.map(function(x){return x.workerId;}),'myId:',myId);
+    S.payrollShifts=all
       .filter(function(s){return s.workerId===myId;})
       .sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     render();

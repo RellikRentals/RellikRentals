@@ -613,12 +613,14 @@ function saveWorkerShift(tp){
   if(!d.hours||isNaN(Number(d.hours))||Number(d.hours)<=0){alert('Please enter valid hours');return;}
   if(!d.date){alert('Please enter a date');return;}
   if(!tp||!tp.landlordUid){alert('Could not find landlord info');return;}
+  console.log('[SHIFT] tp.email:',tp.email,'pid:',pid(tp.email),'tp:',JSON.stringify(tp));
   closeSheet();
   var f=fb();
+  var workerEmail=(tp.email||S.user.email||'').toLowerCase().trim();
   var shiftId=mkid();
   f.setDoc(f.doc(f.db,'users/'+tp.landlordUid+'/payroll/'+shiftId),{
     id:shiftId,
-    workerId:pid(tp.email),
+    workerId:pid(workerEmail),
     workerName:tp.name||S.user.email,
     hourlyRate:Number(tp.hourlyRate)||0,
     hours:Number(d.hours),
@@ -633,7 +635,8 @@ function subscribeWorkerShifts(tp){
   // Worker subscribes to their own shifts in landlord's payroll
   if(!tp||!tp.landlordUid)return;
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
-  var myId=pid(tp.email);
+  var workerEmail=(tp.email||'').toLowerCase().trim();
+  var myId=pid(workerEmail);
   _unsubs.push(snap(q(col(db,'users/'+tp.landlordUid+'/payroll')),function(s){
     S.payrollShifts=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});})
       .filter(function(s){return s.workerId===myId;})

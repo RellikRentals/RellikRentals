@@ -179,7 +179,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false, showLoginAnimation:true,
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'',
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
@@ -339,7 +339,8 @@ function makeReceiptFilename(vendor,total,category,date){
   var yy=String(d.getFullYear()).slice(-2);
   var amt=Number(total).toFixed(2);
   var cat=(category||'Other').replace(/[^a-zA-Z0-9]/g,'');
-  return mm+'-'+dd+'-'+yy+'-$'+amt+'-'+cat+'.jpg';
+  var suffix=S.isPartner?'-K':'';
+  return mm+'-'+dd+'-'+yy+'-$'+amt+'-'+cat+suffix+'.jpg';
 }
 
 // ── Capital Assets ────────────────────────────────────────────────
@@ -887,6 +888,22 @@ function updateDedItem(catId,itemId,field,val){
 }
 
 function saveAdminNotes(){if(!S.user)return;fsSet('users/'+S.user.uid+'/settings/adminNotes',{categories:S.adminNoteCategories||[]});}
+function savePartnerSettings(){
+  var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+  fsSet('users/'+LANDLORD_UID+'/settings/partner',{email:S.partnerEmail||''});
+}
+function loadPartnerSettings(){
+  try{
+    var f=fb();
+    var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+    f.getDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/settings/partner')).then(function(d){
+      if(d&&d.exists&&d.exists()){
+        S.partnerEmail=(d.data().email||'').toLowerCase().trim();
+        S.landlordUidForPartner=LANDLORD_UID;
+      }
+    }).catch(function(){});
+  }catch(e){}
+}
 function loadAdminNotes(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/adminNotes')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();if(p.categories)S.adminNoteCategories=p.categories;render();}}catch(e){}}).catch(function(){});}catch(e){}}
 function addAdminNoteCategory(){var label=(prompt('Category name:')||'').trim();if(!label)return;S.adminNoteCategories=S.adminNoteCategories||[];S.adminNoteCategories.push({id:'anc_'+Date.now(),label:label,items:[]});saveAdminNotes();render();}
 function delAdminNoteCategory(id){if(!confirm('Delete this category and all its notes?'))return;S.adminNoteCategories=(S.adminNoteCategories||[]).filter(function(c){return c.id!==id;});saveAdminNotes();render();}
@@ -2236,7 +2253,7 @@ function _doRender(){
 
   var nav='<nav class="bottom-nav">'
     +'<div class="nav-row">'
-    +[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'tax',l:'Tax',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'},{id:'payroll',l:'Payroll',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>'}]
+    +(S.isPartner?[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'}]:[{id:'home',l:'Home',i:ICO.home},{id:'tenants',l:'Tenants',i:ICO.users},{id:'tax',l:'Tax',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'},{id:'maintenance',l:'Requests',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>'},{id:'payroll',l:'Payroll',i:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>'}])
     .map(function(tb){
       var b=tb.id==='maintenance'?badge(newRequestCount):'';
       var bl=tb.id==='maintenance'?badgeLeft(doneTodoBadge):'';
@@ -2288,6 +2305,41 @@ function _doRender(){
       +S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(S.selectedProperty===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')
       +'</select></div>';
     // ── Quick Action Screen ────────────────────────────────────────
+    if(S.isPartner && S.adminNotesPage){
+      // Partner can access Admin Notes read/write — reuse same page
+    }
+    if(S.isPartner && !S.adminNotesPage){
+      // Partner quick home screen
+      c='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17">'
+        +'<div style="padding:24px 20px 8px;display:flex;justify-content:space-between;align-items:center">'
+        +'<div><div style="font-size:12px;color:#7c7a90;font-weight:600;letter-spacing:1px">RELLIKRENTALS</div><div style="font-size:22px;font-weight:800;letter-spacing:-0.5px">Partner View</div></div>'
+        +'<span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v4.5.0</span>'
+        +'</div>'
+        +'<div style="flex:1;display:flex;flex-direction:column;gap:16px;padding:20px">'
+        +'<button onclick="S.tab=\'home\';S.quickMode=false;render()" style="flex:1;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:120px">'
+        +'<div style="font-size:48px">🏠</div>'
+        +'<div style="font-size:22px;font-weight:800;color:#fff">Dashboard</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.7)">View properties & tenants</div>'
+        +'</button>'
+        +'<div style="display:flex;gap:16px;flex:1">'
+        +'<button onclick="S.adminNotesPage=true;render()" style="flex:1;background:linear-gradient(135deg,#8b5cf6,#7c3aed);border:none;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:100px">'
+        +'<div style="font-size:36px">📋</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#fff">Admin Notes</div>'
+        +'</button>'
+        +'<button onclick="S.tab=\'settings\';S.quickMode=false;render()" style="flex:1;background:#1a1826;border:1px solid #2e2c3d;border-radius:20px;cursor:pointer;font-family:Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:100px">'
+        +'<div style="font-size:36px">⚙️</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#f0eef8">Settings</div>'
+        +'</button>'
+        +'</div>'
+        +'</div>'
+        +'<div style="padding:0 20px 16px">'
+        +'<button onclick="doSignOut()" style="width:100%;background:#f8717111;border:1px solid #f8717133;border-radius:12px;padding:10px;color:#f87171;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Sign Out</button>'
+        +'</div>'
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
+      return;
+    }
+
     if(!S.isTenant && S.adminNotesPage){
       var anCats=S.adminNoteCategories||[];
       var anPriorityColors={low:'#f0eef8',medium:'#fbbf24',high:'#f87171'};
@@ -2885,8 +2937,7 @@ function _doRender(){
       +'<div><div style="font-size:14px;font-weight:700">📁 Google Drive</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">Auto-save named receipts to Drive</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Active</div>'
       +'</div>'
-      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
-      +'</div>';
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">PARTNER ACCESS</div>'      +'<div class="card" style="padding:14px 16px">'      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:8px">Partner email gets read-only dashboard access with Admin Notes.</div>'      +'<div style="display:flex;gap:8px;align-items:center">'      +'<input type="email" placeholder="partner@email.com" value="'+esc(S.partnerEmail||'')+'" oninput="S.partnerEmail=this.value.toLowerCase().trim()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/>'      +'<button onclick="savePartnerSettings();render()" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:8px 14px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Save</button>'      +'</div>'      +'</div>'      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'      +'</div>';
   }
 
   else if(S.tab==='receipts'){
@@ -3178,6 +3229,7 @@ function skipSplash(){
 }
 
 function initApp(){
+  loadPartnerSettings();
   var f=fb();
   f.onAuthStateChanged(f.auth,function(user){
     var wasLoggedOut=!S.user;
@@ -3185,7 +3237,10 @@ function initApp(){
     if(user){
       if(wasLoggedOut&&!S.splashDone) S._pendingSplash=true;
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
-        S.isTenant=false; subscribeLandlord(user.uid);
+        S.isTenant=false; S.isPartner=false; subscribeLandlord(user.uid);
+      }else if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail.toLowerCase()){
+        S.isTenant=false; S.isPartner=true; subscribeLandlord(S.landlordUidForPartner||'');
+        if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
       }else{
         S.isTenant=true;
         // Write UID to tenantProfile so security rules can look up by UID

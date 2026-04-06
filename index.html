@@ -1409,7 +1409,7 @@ function doSignOut(){
   f.signOut(f.auth).then(function(){
     unsub();
     S.tenants=[];S.receipts=[];S.utilities=[];S.properties=[];S.tenantProfile=null;S.capitalAssets=[];S.mortgages=[];
-    S.tab='home';S.selectedTenant=null;S.sheet=null;
+    S.tab='home';S.selectedTenant=null;S.sheet=null;S.isPartner=false;S.partnerQuickMode=true;S.splashDone=false;
   });
 }
 
@@ -2476,6 +2476,10 @@ function _doRender(){
     // ── Quick Action Screen ────────────────────────────────────────
     if(S.isPartner && S.adminNotesPage){
       // Partner can access Admin Notes read/write — reuse same page
+    }
+    if(S.isPartner && !S.adminNotesPage && !S.partnerQuickMode){
+      // Partner in full dashboard mode — render as landlord but set quickMode false
+      S.quickMode=false;
     }
     if(S.isPartner && !S.adminNotesPage && S.partnerQuickMode){
       // Partner quick home screen

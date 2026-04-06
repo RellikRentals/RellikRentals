@@ -900,16 +900,43 @@ function loadPartnerSettings(){
       if(d&&d.exists&&d.exists()){
         S.partnerEmail=(d.data().email||'').toLowerCase().trim();
         S.landlordUidForPartner=LANDLORD_UID;
-        // If user is already logged in and matches partner email, activate partner role
-        if(S.user&&S.partnerEmail&&S.user.email.toLowerCase()===S.partnerEmail){
-          S.isTenant=false;
-          S.isPartner=true;
-          subscribeLandlord(LANDLORD_UID);
-          render();
-        }
       }
-    }).catch(function(){});
-  }catch(e){}
+      S._partnerSettingsLoaded=true;
+      // If auth fired before we loaded partner settings, process the pending user now
+      if(S._pendingAuthUser){
+        var user=S._pendingAuthUser;
+        S._pendingAuthUser=null;
+        if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail){
+          S.isTenant=false; S.isPartner=true;
+          subscribeLandlord(LANDLORD_UID);
+          if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
+        }else{
+          S.isTenant=true;
+          var f2=fb();
+          f2.setDoc(f2.doc(f2.db,'tenantProfiles/'+pid(user.email.toLowerCase())),{uid:user.uid},{merge:true}).catch(function(){});
+          subscribeTenantPortal(user.email.toLowerCase());
+          if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
+        }
+        initNotifications();
+      }
+      // If user already logged in and matches partner email
+      if(S.user&&S.partnerEmail&&S.user.email.toLowerCase()===S.partnerEmail&&!S.isPartner){
+        S.isTenant=false; S.isPartner=true;
+        subscribeLandlord(LANDLORD_UID);
+        render();
+      }
+    }).catch(function(){
+      S._partnerSettingsLoaded=true;
+      // On error still process pending auth as tenant
+      if(S._pendingAuthUser){
+        var user=S._pendingAuthUser; S._pendingAuthUser=null;
+        S.isTenant=true;
+        subscribeTenantPortal(user.email.toLowerCase());
+        if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
+        initNotifications();
+      }
+    });
+  }catch(e){S._partnerSettingsLoaded=true;}
 }
 function loadAdminNotes(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/adminNotes')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();if(p.categories)S.adminNoteCategories=p.categories;render();}}catch(e){}}).catch(function(){});}catch(e){}}
 function addAdminNoteCategory(){var label=(prompt('Category name:')||'').trim();if(!label)return;S.adminNoteCategories=S.adminNoteCategories||[];S.adminNoteCategories.push({id:'anc_'+Date.now(),label:label,items:[]});saveAdminNotes();render();}
@@ -1737,7 +1764,7 @@ function renderSheet(){
     body='<div class="frow">'
       +'<div style="font-size:14px;font-weight:700;margin-bottom:8px">'+esc(d.text||'Task')+'</div>'
       +'<div><label>Hours Worked</label><input type="number" step="0.5" min="0" placeholder="e.g. 2.5" oninput="S.sheetData.hours=this.value"/></div>'
-      +'<div><label>Notes / Materials Used</label><textarea placeholder="Optional notes..." oninput="S.sheetData.notes=this.value" style="min-height:80px"></textarea></div>'
+      +'<div><label>Notes / Materials Used</label><textarea placeholder="Optional notes..." oninput="S.sheetData.notes=this.value" style="min-height:80px;width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none;resize:vertical;box-sizing:border-box"></textarea></div>'
       +'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="completeWorkOrder(S.sheetData.id,S.sheetData.hours,S.sheetData.notes)">Complete & Log</button></div>';
   }
@@ -3373,6 +3400,11 @@ function initApp(){
       }else if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail.toLowerCase()){
         S.isTenant=false; S.isPartner=true; subscribeLandlord(S.landlordUidForPartner||'');
         if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
+      }else if(!S._partnerSettingsLoaded){
+        // partnerEmail not loaded yet — wait for it before deciding tenant vs partner
+        S._pendingAuthUser=user;
+        render();
+        return;
       }else{
         S.isTenant=true;
         // Write UID to tenantProfile so security rules can look up by UID

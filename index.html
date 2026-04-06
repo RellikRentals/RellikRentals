@@ -900,6 +900,13 @@ function loadPartnerSettings(){
       if(d&&d.exists&&d.exists()){
         S.partnerEmail=(d.data().email||'').toLowerCase().trim();
         S.landlordUidForPartner=LANDLORD_UID;
+        // If user is already logged in and matches partner email, activate partner role
+        if(S.user&&S.partnerEmail&&S.user.email.toLowerCase()===S.partnerEmail){
+          S.isTenant=false;
+          S.isPartner=true;
+          subscribeLandlord(LANDLORD_UID);
+          render();
+        }
       }
     }).catch(function(){});
   }catch(e){}

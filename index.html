@@ -1718,6 +1718,7 @@ function renderSheet(){
   }
   else if(S.sheet==='editTodo'){
     var d=S.sheetData;
+    if(!d.priority) d.priority='low'; // ensure default
     title='Edit Task';
     var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
     var workerSel='<select onchange="S.sheetData.assignedTo=this.value;renderSheet()" style="width:100%"><option value="">— Unassigned —</option>'
@@ -2298,6 +2299,7 @@ function _doRender(){
                 +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
                 +'<div style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';box-shadow:0 0 4px '+dotColor+';flex-shrink:0"></div>'
                 +'<span style="flex:1;font-size:13px;font-weight:700;color:#f0eef8">'+esc(t.text)+'</span>'
+                +(t.priority==='high'?'<span style="font-size:10px;color:#f87171;font-weight:700;background:#f8717122;padding:2px 6px;border-radius:99px">High</span>':t.priority==='medium'?'<span style="font-size:10px;color:#fbbf24;font-weight:700;background:#fbbf2422;padding:2px 6px;border-radius:99px">Med</span>':'')
                 +'</div>'
                 +(wos==='assigned'?'<button onclick="startWorkOrder(\''+t.id+'\')" style="background:#4ade8022;border:1px solid #4ade8044;border-radius:10px;padding:6px 14px;color:#4ade80;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif;width:100%">▶ Start</button>':'')
                 +(wos==='started'?'<div style="display:flex;gap:8px">'

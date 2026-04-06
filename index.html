@@ -955,6 +955,22 @@ function doSaveMileage(){
   closeSheet();
   saveMileage({id:mkid(),date:d.date,distance:Number(d.distance),unit:d.unit||'km',property:d.property||'Other',notes:d.notes||''});
 }
+function saveTodoEdit(){
+  var d=S.sheetData;
+  var t=S.todoItems.find(function(x){return x.id===d.id;});
+  if(!t)return;
+  var uid=S.user.uid;
+  var w=S.tenants.find(function(x){return pid(x.email||'')===d.assignedTo;});
+  var newStatus=d.assignedTo?(t.workOrderStatus==='unassigned'||!t.workOrderStatus?'assigned':t.workOrderStatus):'unassigned';
+  fsSet('users/'+uid+'/todos/'+t.id,Object.assign({},t,{
+    text:d.text||t.text,
+    priority:d.priority||t.priority,
+    assignedTo:d.assignedTo||null,
+    assignedName:w?w.name:'',
+    workOrderStatus:newStatus
+  }));
+  closeSheet();
+}
 function assignWorkOrder(todoId, workerPid, workerName){
   var t=S.todoItems.find(function(x){return x.id===todoId;});
   if(!t)return;
@@ -1697,7 +1713,7 @@ function renderSheet(){
     var d=S.sheetData;
     title='Edit Task';
     var workers=S.tenants.filter(function(t){return t.canMaintenance||t.canPropertyManager;});
-    var workerSel='<select onchange="S.sheetData.assignedTo=this.value;var w='+JSON.stringify([]).replace(/"/g,"'")+';renderSheet()" style="width:100%"><option value="">— Unassigned —</option>'
+    var workerSel='<select onchange="S.sheetData.assignedTo=this.value;renderSheet()" style="width:100%"><option value="">— Unassigned —</option>'
       +workers.map(function(w){return '<option value="'+pid(w.email||'')+'"'+(d.assignedTo===pid(w.email||'')?' selected':'')+'>'+esc(w.name||w.email)+'</option>';}).join('')
       +'</select>';
     body='<div class="frow">'
@@ -1705,7 +1721,7 @@ function renderSheet(){
       +'<div><label>Priority</label><select onchange="S.sheetData.priority=this.value"><option value="low"'+(d.priority==='low'?' selected':'')+'>Low</option><option value="medium"'+(d.priority==='medium'?' selected':'')+'>Medium</option><option value="high"'+(d.priority==='high'?' selected':'')+'>High</option></select></div>'
       +(workers.length>0?'<div><label>Assign To</label>'+workerSel+'</div>':'')
       +'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="var t=S.todoItems.find(function(x){return x.id===S.sheetData.id;});if(t){var uid=S.user.uid;var w=S.tenants.find(function(x){return pid(x.email||\'\')==S.sheetData.assignedTo;});fsSet(\'users/\'+uid+\'/todos/\'+t.id,Object.assign({},t,{text:S.sheetData.text||t.text,priority:S.sheetData.priority||t.priority,assignedTo:S.sheetData.assignedTo||null,assignedName:w?w.name:\'\',workOrderStatus:S.sheetData.assignedTo?(t.workOrderStatus===\'unassigned\'||!t.workOrderStatus?\'assigned\':t.workOrderStatus):\'unassigned\'}));closeSheet();}">Save</button></div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="saveTodoEdit()">Save</button></div>';
   }
   else if(S.sheet==='workOrderComplete'){
     title='✅ Complete Task';

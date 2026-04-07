@@ -1567,12 +1567,23 @@ function doGeneratePDFs(){
 function handleFileScan(file){
   if(!file||!file.type.startsWith('image/')){S.scanError='Please upload an image.';render();return;}
   S.scanError='';S.scanning=true;S.quickMode=false;S.tab='receipts';render();
-  var reader=new FileReader();
-  reader.onload=function(){
-    var base64=reader.result.split(',')[1];
-    var previewUrl=URL.createObjectURL(file);
+  var previewUrl=URL.createObjectURL(file);
+  // Compress image to stay under 5MB API limit
+  var img=new Image();
+  img.onload=function(){
+    var canvas=document.createElement('canvas');
+    var maxDim=2048;
+    var w=img.width,h=img.height;
+    if(w>maxDim||h>maxDim){var scale=maxDim/Math.max(w,h);w=Math.round(w*scale);h=Math.round(h*scale);}
+    canvas.width=w;canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    var quality=0.85;
+    var dataUrl=canvas.toDataURL('image/jpeg',quality);
+    // If still too big, compress more
+    if(dataUrl.length*0.75>4500000){dataUrl=canvas.toDataURL('image/jpeg',0.65);}
+    var base64=dataUrl.split(',')[1];
     var prompt='Analyze this receipt. Respond ONLY with JSON, no markdown: {"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"} If not a receipt set total to 0.';
-    var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:base64}},{type:'text',text:prompt}]}]});
+    var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},{type:'text',text:prompt}]}]});
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})
     .then(function(data){
@@ -1607,7 +1618,7 @@ function handleFileScan(file){
     .catch(function(e){var msg=e&&e.message?e.message:String(e);S.scanError='Scan error: '+msg.slice(0,80);console.error('Scanner error:',e);})
     .finally(function(){S.scanning=false;render();});
   };
-  reader.readAsDataURL(file);
+  img.src=URL.createObjectURL(file);
 }
 
 

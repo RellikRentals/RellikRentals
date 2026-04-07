@@ -1576,9 +1576,11 @@ function handleFileScan(file){
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})
     .then(function(data){
+      if(!data||!data.content||!Array.isArray(data.content)){S.scanError='Scan failed — please try again.';S.scanning=false;render();return;}
       var txt=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
       var clean=txt.replace(/[\u0000-\u001F\u007F-\u009F]/g,'').replace(/[^\x20-\x7E\xA0-\uFFFF]/g,'').trim();
-      var result=JSON.parse(clean);
+      var result;try{result=JSON.parse(clean);}catch(e){S.scanError='Could not read receipt — try a clearer photo.';S.scanning=false;render();return;}
+      if(!result||typeof result!=='object'){S.scanError='Could not read receipt — try a clearer photo.';S.scanning=false;render();return;}
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
       // Check for duplicate

@@ -909,7 +909,7 @@ function loadPartnerSettings(){
         if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail){
           S.isTenant=false; S.isPartner=true;
           subscribeLandlord(LANDLORD_UID);
-          if(S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}
+          S._pendingSplash=false; // Partner never gets animation
         }else{
           S.isTenant=true;
           var f2=fb();
@@ -2120,9 +2120,9 @@ function _doRender(){
     var isSignup=S.authMode==='tenant';
     root.innerHTML='<div class="auth-wrap">'
       +'<div style="font-size:32px;font-weight:900;margin-bottom:4px;letter-spacing:-1px">RellikRentals</div>'
-      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:40px;font-weight:600">'+(S.authMode==='tenant'||S.authMode==='tenantLogin'?'Tenant Portal':'Property Management')+'</div>'
+      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:40px;font-weight:600">'+(S.authMode==='tenant'?'Create Tenant Account':'Sign In')+'</div>'
       +'<div class="auth-card">'
-      +'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(S.authMode==='login'?'Welcome back 👋':S.authMode==='tenant'?'Tenant Sign Up 🔑':S.authMode==='tenantLogin'?'Tenant Login 🔑':'Landlord Sign Up 🏠')+'</div>'
+      +'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+(S.authMode==='tenant'?'Create Account 🔑':'Welcome back 👋')+'</div>'
       +(S.authError?'<div class="auth-error">'+esc(S.authError)+'</div>':'')
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
@@ -2134,11 +2134,9 @@ function _doRender(){
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
       +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-      +'<button onclick="S.authMode=\'login\';S.authError=\'\';render()" style="background:'+(S.authMode==='login'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='login'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🏠 Landlord Login</button>'
-      +'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenant'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenant'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Sign Up</button>'
-      +'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:'+(S.authMode==='tenantLogin'?'#6366f133':'#22202f')+';border:1px solid '+(S.authMode==='tenantLogin'?'#6366f1':'#2e2c3d')+';border-radius:12px;padding:10px;color:#f0eef8;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 Tenant Login</button>'
+      +'<div style="display:flex;gap:8px;margin-top:6px">'      +(S.authMode!=='tenant'?'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#7c7a90;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 New Tenant? Sign Up</button>':'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#6366f1;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to Login</button>')      +'</div>'
       +'</div></div>'
-      +(S.authMode!=='tenantLogin'?'<div style="text-align:center;margin-top:14px;font-size:13px"><button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:none;border:none;color:#6366f1;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to login</button></div>':'')
+      
       +'</div></div>';
     return;
   }
@@ -2586,10 +2584,8 @@ function _doRender(){
         +'</button>'
         +'</div>'
         +'</div>'
-        +'<div style="padding:0 20px 16px">'
-        +'<button onclick="S.adminNotesPage=true;render()" style="width:100%;background:#8b5cf611;border:1px solid #8b5cf633;border-radius:12px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📋 Admin Notes</button>'
-        +'</div>'
-        +'</div>';
+        +'<div style="padding:0 20px 16px;display:flex;gap:8px">'
+        +'<button onclick="S.adminNotesPage=true;render()" style="flex:1;background:#8b5cf611;border:1px solid #8b5cf633;border-radius:12px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📋 Admin Notes</button>'        +'<button onclick="doSignOut()" style="background:#f8717111;border:1px solid #f8717133;border-radius:12px;padding:8px 14px;color:#f87171;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Sign Out</button>'        +'</div>'        +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
       return;
     }
@@ -3044,7 +3040,7 @@ function _doRender(){
           +'<span style="font-size:16px;font-weight:800;color:#6366f1;min-width:20px;text-align:center">'+row[2]+'</span>'
           +'<button onclick="S[\''+row[1]+'\']=Math.min(20,S[\''+row[1]+'\']+1);saveDisplayPrefs();render()" style="width:28px;height:28px;border-radius:8px;background:#22202f;border:1px solid #2e2c3d;color:#f0eef8;font-size:16px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;display:flex;align-items:center;justify-content:center">+</button>'
           +'</div>'
-          +'</div>';
+          +'</div>'
       }).join('')
       +'</div>'
       // Maintenance Budget section
@@ -3086,7 +3082,7 @@ function _doRender(){
             +'<button onclick="var el=document.getElementById(\'addFunds_'+wid+'\');var amt=Number(el.value);if(!amt||amt<=0){alert(\'Enter a valid amount\');return;}var wid=\''+wid+'\';var cfg=S.payrollBudgets[wid]||{balance:0};saveBudgetConfig(wid,Object.assign({},cfg,{balance:(Number(cfg.balance)||0)+amt}));el.value=\'\';" style="background:#4ade8022;border:1px solid #4ade8044;border-radius:10px;padding:8px 14px;color:#4ade80;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;white-space:nowrap">+ Add</button>'
             +'</div>'
             +'</div>'
-            +'</div>';
+            +'</div>'
         }).join('')
         +(workers.length>1?'<div style="text-align:center;margin-bottom:4px"><button onclick="S.showAllBudgetWorkers=!S.showAllBudgetWorkers;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(showAll?'Show Less':'View All '+workers.length+' Workers')+'</button></div>':'');
       })()
@@ -3094,7 +3090,7 @@ function _doRender(){
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">NOTIFICATIONS</div>'
       +'<div class="card" style="padding:0">'
       +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#f0eef8">🔔 Push Notifications</span><div onclick="initNotifications()" style="width:48px;height:26px;border-radius:99px;background:#4ade80;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:23px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
-      +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#f0eef8">🌀 Login Animation</span><div onclick="S.showLoginAnimation=!S.showLoginAnimation;saveDisplayPrefs();render()" style="width:48px;height:26px;border-radius:99px;background:'+(S.showLoginAnimation?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(S.showLoginAnimation?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
+      +(S.isPartner?'':'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#f0eef8">🌀 Login Animation</span><div onclick="S.showLoginAnimation=!S.showLoginAnimation;saveDisplayPrefs();render()" style="width:48px;height:26px;border-radius:99px;background:'+(S.showLoginAnimation?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(S.showLoginAnimation?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>')
       +'</div>'
       // Account section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ACCOUNT</div>'
@@ -3113,7 +3109,13 @@ function _doRender(){
       +'<div><div style="font-size:14px;font-weight:700">📁 Google Drive</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">Auto-save named receipts to Drive</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Active</div>'
       +'</div>'
-      +(S.isPartner?'':'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">PARTNER ACCESS</div>'      +'<div class="card" style="padding:14px 16px">')      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:8px">Partner email gets read-only dashboard access with Admin Notes.</div>'      +(S.partnerEmail&&!S._editingPartner?'<div style="display:flex;gap:8px;align-items:center"><div style="flex:1;font-size:13px;font-weight:700;color:#f0eef8">'+esc(S.partnerEmail)+'</div><button onclick="S._editingPartner=true;render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="S.partnerEmail=\'\';S._editingPartner=false;savePartnerSettings();render()" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div>':'<div style="display:flex;gap:8px;align-items:center"><input type="email" placeholder="partner@email.com" value="'+esc(S.partnerEmail||'')+'" oninput="S.partnerEmail=this.value.toLowerCase().trim()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/><button onclick="S._editingPartner=false;savePartnerSettings();render()" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:8px 14px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Save</button></div>')      +'</div>'      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'      +'</div>';
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">PARTNER ACCESS</div>'
+      +'<div class="card" style="padding:14px 16px">'
+      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:8px">Partner email gets read-only dashboard access with Admin Notes.</div>'
+      +(S.partnerEmail&&!S._editingPartner?'<div style="display:flex;gap:8px;align-items:center"><div style="flex:1;font-size:13px;font-weight:700;color:#f0eef8">'+esc(S.partnerEmail)+'</div><button onclick="S._editingPartner=true;render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;cursor:pointer;color:#7c7a90">'+ICO.edit+'</button><button onclick="S.partnerEmail=\'\';S._editingPartner=false;savePartnerSettings();render()" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button></div>':'<div style="display:flex;gap:8px;align-items:center"><input type="email" placeholder="partner@email.com" value="'+esc(S.partnerEmail||'')+'" oninput="S.partnerEmail=this.value.toLowerCase().trim()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/><button onclick="S._editingPartner=false;savePartnerSettings();render()" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:8px 14px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Save</button></div>')
+      +'</div>'
+      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
+      +'</div>';
   }
 
   else if(S.tab==='receipts'){
@@ -3438,7 +3440,8 @@ function initApp(){
       }else if(!S._partnerSettingsLoaded){
         // partnerEmail not loaded yet — wait for it before deciding tenant vs partner
         S._pendingAuthUser=user;
-        render();
+        S.authReady=true;
+        root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6366f1;font-family:Nunito,sans-serif;font-size:18px;font-weight:700">Loading...</div>';
         return;
       }else{
         S.isTenant=true;

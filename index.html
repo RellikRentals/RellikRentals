@@ -735,13 +735,15 @@ function toggleShiftPaid(id){
   var s=S.payrollShifts.find(function(x){return x.id===id;});
   if(!s)return;
   var nowPaid=!s.paid;
-  var shiftAmt=(Number(s.hours)||0)*(Number(s.hourlyRate)||0);
-  console.log('[BUDGET] workerId:',s.workerId,'budgetKeys:',Object.keys(S.payrollBudgets),'amt:',shiftAmt);
+  // Fall back to worker's current rate if shift has no rate stored
+  var worker=S.tenants.find(function(t){return t.workerId===s.workerId||pid(t.email||'')===s.workerId;});
+  var rate=Number(s.hourlyRate)||Number(s.rate)||(worker?Number(worker.hourlyRate)||0:0);
+  var shiftAmt=(Number(s.hours)||0)*rate;
+  console.log('[BUDGET] workerId:',s.workerId,'rate:',rate,'hours:',s.hours,'amt:',shiftAmt);
   saveShift(Object.assign({},s,{paid:nowPaid}));
   if(nowPaid&&shiftAmt>0){
     deductFromBudget(s.workerId,shiftAmt);
   } else if(!nowPaid&&shiftAmt>0){
-    // Undo — add back to budget
     deductFromBudget(s.workerId,-shiftAmt);
   }
 }

@@ -3523,6 +3523,7 @@ function initApp(){
         root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6366f1;font-family:Nunito,sans-serif;font-size:18px;font-weight:700">Loading...</div>';
         return;
       }else{
+        console.warn('[AUTH] Fell to tenant path. partnerEmail:',S.partnerEmail,'userEmail:',user.email,'loaded:',S._partnerSettingsLoaded);
         if(wasLoggedOut&&!S.splashDone) S._pendingSplash=true;
         S.isTenant=true;
         var f2=fb();

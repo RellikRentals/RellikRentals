@@ -1042,7 +1042,7 @@ function doSaveMileage(){
   var d=S.sheetData;
   if(!d.distance||!d.date){alert('Date and distance required');return;}
   closeSheet();
-  saveMileage({id:mkid(),date:d.date,distance:Number(d.distance),unit:d.unit||'km',property:d.property||'Other',notes:d.notes||''});
+  saveMileage({id:mkid(),date:d.date,distance:Number(d.distance),unit:d.unit||'km',property:d.property||'Other',notes:d.notes||'',addedBy:S.isPartner?'partner':'landlord'});
 }
 function saveTodoEdit(){
   var d=S.sheetData;
@@ -3262,7 +3262,7 @@ function _doRender(){
         +S.properties.map(function(p){return '<button onclick="S.mileageFilter=\''+esc(p.name)+'\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter===p.name?'#6366f1':'#22202f')+';color:'+(S.mileageFilter===p.name?'#fff':'#7c7a90')+'">'+esc(p.name)+'</button>';}).join('')
         +'<button onclick="S.mileageFilter=\'Other\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter==='Other'?'#6366f1':'#22202f')+';color:'+(S.mileageFilter==='Other'?'#fff':'#7c7a90')+'">Other</button>'
         +'</div>'
-        +curMileageProp.slice(0,S.showAllMileage?9999:S.dispMileage).map(function(m){return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
+        +curMileageProp.slice(0,S.showAllMileage?9999:S.dispMileage).map(function(m){var mColor=m.addedBy==='partner'?'#fbbf24':'#4ade80';return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d;border-left:3px solid '+mColor+';padding-left:8px"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="delMileage(\''+m.id+'\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.trash+'</button></div></div>';}).join('')
         +(curMileageProp.length>5?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllMileage=!S.showAllMileage;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllMileage?'Show Less':'View All '+curMileageProp.length+' trips')+'</button></div>':'')
         +'</div>'
       :'')

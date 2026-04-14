@@ -179,7 +179,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true,
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true, _partnerOnboarded:true,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
@@ -584,7 +584,7 @@ function doEditUtil(){
 }
 function saveUtil(u,mk){return fsSet('users/'+S.user.uid+'/util_'+(mk||monthKey())+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
-function saveDisplayPrefs(){var prefUid=S.isPartner?'192dQJClOZShp9wbdDevZUHDR922':(S.user?S.user.uid:'');if(!prefUid)return;fsSet('users/'+prefUid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases,dispTodos:S.dispTodos,showLoginAnimation:S.showLoginAnimation!==false});}
+function saveDisplayPrefs(){var prefUid=S.user?S.user.uid:'';if(!prefUid)return;fsSet('users/'+prefUid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases,dispTodos:S.dispTodos,showLoginAnimation:S.showLoginAnimation!==false});}
 function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;S.dispTodos=p.dispTodos||5;var prevAnim=S.showLoginAnimation;S.showLoginAnimation=p.showLoginAnimation!==false;}if(S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}else{S._pendingSplash=false;}render();}catch(e){}}).catch(function(){if(S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}});}catch(e){}}
 function toggleUtilLock(id){
   var u=S.utilities.find(function(x){return x.id===id;});
@@ -932,7 +932,7 @@ function loadPartnerSettings(){
         if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail){
           S.isTenant=false; S.isPartner=true;
           subscribeLandlord(LANDLORD_UID);
-          S._pendingSplash=false; // Partner never gets animation
+          loadPartnerOwnPrefs(user.uid);
         }else{
           S.isTenant=true;
           var f2=fb();
@@ -946,11 +946,10 @@ function loadPartnerSettings(){
       if(S.user&&S.partnerEmail&&S.user.email.toLowerCase()===S.partnerEmail&&!S.isPartner){
         S.isTenant=false; S.isPartner=true;
         subscribeLandlord(LANDLORD_UID);
-        render();
+        loadPartnerOwnPrefs(S.user.uid);
       }
     }).catch(function(){
       S._partnerSettingsLoaded=true;
-      // On error still process pending auth as tenant
       if(S._pendingAuthUser){
         var user=S._pendingAuthUser; S._pendingAuthUser=null;
         S.isTenant=true;
@@ -960,6 +959,38 @@ function loadPartnerSettings(){
       }
     });
   }catch(e){S._partnerSettingsLoaded=true;}
+}
+
+function loadPartnerOwnPrefs(partnerUid){
+  // Load partner's own displayPrefs from her own UID
+  try{
+    var f=fb();
+    f.getDoc(f.doc(f.db,'users/'+partnerUid+'/settings/displayPrefs')).then(function(d){
+      if(d&&d.exists&&d.exists()){
+        var p=d.data();
+        S.dispReceipts=p.dispReceipts||3;
+        S.dispMileage=p.dispMileage||5;
+        S.dispUtils=p.dispUtils||2;
+        S.dispLeases=p.dispLeases||3;
+        S.dispTodos=p.dispTodos||5;
+        S.showLoginAnimation=p.showLoginAnimation===true; // partner default OFF
+        S._partnerOnboarded=true;
+      }else{
+        // First login — show onboarding screen
+        S.showLoginAnimation=false;
+        S._partnerOnboarded=false;
+        // Save default prefs immediately so next login is clean
+        fsSet('users/'+partnerUid+'/settings/displayPrefs',{dispReceipts:3,dispMileage:5,dispUtils:2,dispLeases:3,dispTodos:5,showLoginAnimation:false});
+      }
+      // Partner never gets animation
+      S._pendingSplash=false;
+      render();
+    }).catch(function(){
+      S._pendingSplash=false;
+      S._partnerOnboarded=true;
+      render();
+    });
+  }catch(e){S._pendingSplash=false;render();}
 }
 function loadAdminNotes(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/adminNotes')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();if(p.categories)S.adminNoteCategories=p.categories;render();}}catch(e){}}).catch(function(){});}catch(e){}}
 function addAdminNoteCategory(){var label=(prompt('Category name:')||'').trim();if(!label)return;S.adminNoteCategories=S.adminNoteCategories||[];S.adminNoteCategories.push({id:'anc_'+Date.now(),label:label,items:[]});saveAdminNotes();render();}
@@ -1432,7 +1463,7 @@ function doSignOut(){
   f.signOut(f.auth).then(function(){
     unsub();
     S.tenants=[];S.receipts=[];S.utilities=[];S.properties=[];S.tenantProfile=null;S.capitalAssets=[];S.mortgages=[];
-    S.tab='home';S.selectedTenant=null;S.sheet=null;S.isPartner=false;S.partnerQuickMode=true;S.splashDone=false;
+    S.tab='home';S.selectedTenant=null;S.sheet=null;S.isPartner=false;S.partnerQuickMode=true;S.splashDone=false;S._partnerOnboarded=true;
   });
 }
 
@@ -2528,6 +2559,17 @@ function _doRender(){
     if(S.isPartner && !S.adminNotesPage && !S.partnerQuickMode){
       // Partner in full dashboard mode — render as landlord but set quickMode false
       S.quickMode=false;
+    }
+    if(S.isPartner && !S.adminNotesPage && !S._partnerOnboarded){
+      // First login onboarding screen
+      var oc='<div style="display:flex;flex-direction:column;height:100vh;background:#0f0e17;align-items:center;justify-content:center;padding:32px">'
+        +'<div style="font-size:48px;margin-bottom:20px">👋</div>'
+        +'<div style="font-size:24px;font-weight:800;color:#f0eef8;text-align:center;margin-bottom:8px">Welcome to RellikRentals</div>'
+        +'<div style="font-size:14px;color:#7c7a90;text-align:center;margin-bottom:40px">You have partner access. Tap below to get started.</div>'
+        +'<button onclick="S._partnerOnboarded=true;render()" style="width:100%;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;padding:18px;color:#fff;font-weight:800;font-size:16px;cursor:pointer;font-family:Nunito,sans-serif">Get Started</button>'
+        +'</div>';
+      root.innerHTML='<div id="app"><div class="scroll">'+oc+'</div></div>';
+      return;
     }
     if(S.isPartner && !S.adminNotesPage && S.partnerQuickMode){
       // Partner quick home screen

@@ -585,7 +585,7 @@ function doEditUtil(){
 function saveUtil(u,mk){return fsSet('users/'+S.user.uid+'/util_'+(mk||monthKey())+'/'+u.id,u);}
 function delUtil(id){return fsDel('users/'+S.user.uid+'/util_'+monthKey()+'/'+id);}
 function saveDisplayPrefs(){var prefUid=S.user?S.user.uid:'';if(!prefUid)return;fsSet('users/'+prefUid+'/settings/displayPrefs',{dispReceipts:S.dispReceipts,dispMileage:S.dispMileage,dispUtils:S.dispUtils,dispLeases:S.dispLeases,dispTodos:S.dispTodos,showLoginAnimation:S.showLoginAnimation!==false});}
-function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;S.dispTodos=p.dispTodos||5;var prevAnim=S.showLoginAnimation;S.showLoginAnimation=p.showLoginAnimation!==false;}if(S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}else{S._pendingSplash=false;}render();}catch(e){}}).catch(function(){if(S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}});}catch(e){}}
+function loadDisplayPrefs(uid){try{var f=fb();f.getDoc(f.doc(f.db,'users/'+uid+'/settings/displayPrefs')).then(function(d){try{if(d&&d.exists&&d.exists()){var p=d.data();S.dispReceipts=p.dispReceipts||3;S.dispMileage=p.dispMileage||5;S.dispUtils=p.dispUtils||2;S.dispLeases=p.dispLeases||3;S.dispTodos=p.dispTodos||5;S.showLoginAnimation=p.showLoginAnimation!==false;}if(!S.isPartner&&S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}else{S._pendingSplash=false;}render();}catch(e){}}).catch(function(){if(!S.isPartner&&S._pendingSplash&&!S.splashDone&&S.showLoginAnimation){S._pendingSplash=false;showSplash();}});}catch(e){}}
 function toggleUtilLock(id){
   var u=S.utilities.find(function(x){return x.id===id;});
   if(!u)return;
@@ -934,6 +934,7 @@ function loadPartnerSettings(){
           subscribeLandlord(LANDLORD_UID);
           loadPartnerOwnPrefs(user.uid);
         }else{
+          if(S._pendingWasLoggedOut&&!S.splashDone) S._pendingSplash=true;
           S.isTenant=true;
           var f2=fb();
           f2.setDoc(f2.doc(f2.db,'tenantProfiles/'+pid(user.email.toLowerCase())),{uid:user.uid},{merge:true}).catch(function(){});
@@ -3506,29 +3507,30 @@ function initApp(){
     var wasLoggedOut=!S.user;
     S.user=user; S.authReady=true;
     if(user){
-      if(wasLoggedOut&&!S.splashDone&&!S.isPartner) S._pendingSplash=true;
       if(user.email.toLowerCase()===LANDLORD_EMAIL.toLowerCase()){
+        if(wasLoggedOut&&!S.splashDone) S._pendingSplash=true;
         S.isTenant=false; S.isPartner=false; subscribeLandlord(user.uid);
       }else if(S.partnerEmail&&user.email.toLowerCase()===S.partnerEmail.toLowerCase()){
-        S.isTenant=false; S.isPartner=true; subscribeLandlord(S.landlordUidForPartner||'192dQJClOZShp9wbdDevZUHDR922');
-        if(S._pendingSplash&&!S.splashDone){S._pendingSplash=false;showSplash();}
+        // Partner — never gets animation, loads own prefs
+        S.isTenant=false; S.isPartner=true;
+        subscribeLandlord(S.landlordUidForPartner||'192dQJClOZShp9wbdDevZUHDR922');
+        loadPartnerOwnPrefs(user.uid);
+        return;
       }else if(!S._partnerSettingsLoaded){
         // partnerEmail not loaded yet — wait for it before deciding tenant vs partner
         S._pendingAuthUser=user;
-        S.authReady=true;
+        S._pendingWasLoggedOut=wasLoggedOut;
         root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6366f1;font-family:Nunito,sans-serif;font-size:18px;font-weight:700">Loading...</div>';
         return;
       }else{
+        if(wasLoggedOut&&!S.splashDone) S._pendingSplash=true;
         S.isTenant=true;
-        // Write UID to tenantProfile so security rules can look up by UID
         var f2=fb();
         var tpRef=f2.doc(f2.db,'tenantProfiles/'+pid(user.email.toLowerCase()));
         f2.setDoc(tpRef,{uid:user.uid},{merge:true}).catch(function(e){console.warn('UID write failed:',e);});
-        // Write managerIndex doc keyed by UID for security rule lookups
         var miRef=f2.doc(f2.db,'managerIndex/'+user.uid);
         f2.getDoc(miRef).then(function(snap){
           if(snap.exists()){
-            // Update uid field in case it changed
             f2.setDoc(miRef,{uid:user.uid},{merge:true}).catch(function(e){console.warn('managerIndex update failed:',e);});
           }
         }).catch(function(){});

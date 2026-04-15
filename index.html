@@ -179,7 +179,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true, _partnerOnboarded:true,
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', authInviteKey:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true, _partnerOnboarded:true,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
@@ -1483,14 +1483,65 @@ function doAuth(){
   if(isSignup&&S.authPassword.length<6){
     S.authError='Password needs 6+ characters.';render();return;
   }
+  var email=S.authEmail.trim().toLowerCase();
+  if(isSignup){
+    // Check if legacy tenant (already in tenantProfiles — no key needed)
+    var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+    S.authLoading=true;S.authError='';render();
+    f.getDoc(f.doc(f.db,'tenantProfiles/'+pid(email))).then(function(d){
+      if(d&&d.exists&&d.exists()){
+        // Legacy tenant — bypass key requirement
+        return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword);
+      }
+      // New user — validate invite key
+      var keyInput=(S.authInviteKey||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(!keyInput){
+        S.authError='An invite key is required. Contact your landlord.';S.authLoading=false;render();return Promise.reject({handled:true});
+      }
+      // Search all inviteKeys for this landlord
+      return f.getDocs(f.query(f.collection(f.db,'users/'+LANDLORD_UID+'/inviteKeys'))).then(function(snap){
+        var matchKey=null;
+        snap.docs.forEach(function(doc){
+          var k=doc.data();
+          var storedKey=(k.key||'').replace(/-/g,'');
+          if(storedKey===keyInput&&!k.used) matchKey=Object.assign({},k,{id:doc.id});
+        });
+        if(!matchKey){
+          S.authError='Invalid or already used invite key.';S.authLoading=false;render();return Promise.reject({handled:true});
+        }
+        // Valid key — create account
+        return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword).then(function(cred){
+          var uid=cred.user.uid;
+          // Mark key as used
+          f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/inviteKeys/'+matchKey.id),Object.assign({},matchKey,{used:true,usedBy:email,usedAt:new Date().toISOString()}));
+          // Create pending user entry
+          f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/pendingUsers/'+uid),{
+            id:uid,uid:uid,email:email,
+            name:email.split('@')[0],
+            keyUsed:matchKey.key,
+            keyNote:matchKey.note||'',
+            createdAt:new Date().toISOString()
+          });
+          return cred;
+        });
+      });
+    }).then(function(){
+      S.authLoading=false;S.authConfirmPassword='';S.authInviteKey='';
+    }).catch(function(e){
+      if(e&&e.handled) return;
+      S.authError=e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message||'Signup failed.';
+      S.authLoading=false;render();
+    });
+    return;
+  }
+  // Login flow — unchanged
   S.authLoading=true;S.authError='';render();
-  var p=S.authMode==='login'||S.authMode==='tenantLogin'
-    ?f.signInWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword)
-    :f.createUserWithEmailAndPassword(f.auth,S.authEmail.trim().toLowerCase(),S.authPassword);
-  p.then(function(){S.authLoading=false;S.authConfirmPassword='';}).catch(function(e){
-    S.authError=e.code==='auth/invalid-credential'?'Incorrect email or password.':e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message;
-    S.authLoading=false;render();
-  });
+  f.signInWithEmailAndPassword(f.auth,email,S.authPassword)
+    .then(function(){S.authLoading=false;S.authConfirmPassword='';})
+    .catch(function(e){
+      S.authError=e.code==='auth/invalid-credential'?'Incorrect email or password.':e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message;
+      S.authLoading=false;render();
+    });
 }
 
 function doForgotPassword(){
@@ -2241,7 +2292,7 @@ function _doRender(){
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
       +'<div><label>Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/><button onclick="S.showPassword=!S.showPassword;render()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7c7a90;font-size:16px;padding:0">'+(S.showPassword?'🙈':'👁')+'</button></div></div>'
-      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div>':'')
+      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div><div style="margin-top:12px"><label>Invite Key</label><input type="text" placeholder="XXXX-XXXX-XXXX-XXXX" value="'+esc(S.authInviteKey||'')+'" oninput="S.authInviteKey=this.value.toUpperCase()" style="font-family:monospace;letter-spacing:2px"/><div style="font-size:11px;color:#7c7a90;margin-top:4px">Required for new accounts. Contact your landlord.</div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="clickSound();doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="margin-top:10px"><button onclick="doForgotPassword()" style="background:#6366f122;border:2px solid #6366f144;border-radius:12px;color:#6366f1;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;padding:12px 20px;width:100%;transition:all 0.2s">🔑 Forgot Password?</button><div style="font-size:10px;color:#4a4860;text-align:center;margin-top:6px">Reset link will be emailed to you. Check junk/spam if it doesn\'t arrive.</div></div>':'')

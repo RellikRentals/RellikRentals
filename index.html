@@ -933,6 +933,30 @@ function deletePendingUser(id){
   }
 }
 
+function assignPendingRole(pendingId,role){
+  var u=S.pendingUsers.find(function(x){return x.id===pendingId;});
+  if(!u)return;
+  var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+  if(role==='tenant'){
+    openSheet('addTenant',{name:u.name||'',email:u.email||'',_pendingId:pendingId});
+  }else if(role==='partner'){
+    if(confirm('Assign '+u.email+' as partner?')){
+      S.partnerEmail=u.email.toLowerCase();
+      savePartnerSettings();
+      fsDel('users/'+LANDLORD_UID+'/pendingUsers/'+pendingId);
+      render();
+    }
+  }else if(role==='manager'||role==='maintenance'){
+    if(confirm('Assign '+u.email+' as '+(role==='manager'?'Property Manager':'Maintenance Worker')+'?')){
+      var f=fb();
+      var data={uid:u.uid,landlordUid:LANDLORD_UID,email:u.email,name:u.name||u.email,canPropertyManager:role==='manager',canMaintenance:role==='maintenance'||role==='manager'};
+      f.setDoc(f.doc(f.db,'managerIndex/'+u.uid),data,{merge:true}).then(function(){
+        fsDel('users/'+LANDLORD_UID+'/pendingUsers/'+pendingId);
+      });
+    }
+  }
+}
+
 function subscribeInviteKeys(uid){
   var f=fb();
   _unsubs.push(f.onSnapshot(f.query(f.collection(f.db,'users/'+uid+'/inviteKeys')),function(s){
@@ -2159,7 +2183,7 @@ function renderSheet(){
   document.body.appendChild(el);
 }
 
-function doSheetAddTenant(){if(!S.sheetData.name||!S.sheetData.unit){alert('Name and unit required');return;}var d=S.sheetData;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});saveTenant(t);}
+function doSheetAddTenant(){if(!S.sheetData.name||!S.sheetData.unit){alert('Name and unit required');return;}var d=S.sheetData;var pendingId=d._pendingId||null;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});delete t._pendingId;saveTenant(t);if(pendingId)fsDel('users/'+S.user.uid+'/pendingUsers/'+pendingId);}
 function doSheetAddShift(){
   var d=S.sheetData;
   if(!d.workerId){alert('Please select a worker');return;}
@@ -2849,10 +2873,10 @@ function _doRender(){
             +'</div>'
             +'<div style="font-size:11px;color:#7c7a90;margin-bottom:8px">Joined: '+esc(u.createdAt?u.createdAt.slice(0,10):'')+'</div>'
             +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-            +'<button onclick="alert(\'Role assignment coming in v5.0.0 Session 3\')" style="background:#6366f122;border:1px solid #6366f133;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏠 Tenant</button>'
-            +'<button onclick="alert(\'Role assignment coming in v5.0.0 Session 3\')" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:10px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏢 Manager</button>'
-            +'<button onclick="alert(\'Role assignment coming in v5.0.0 Session 3\')" style="background:#f9731622;border:1px solid #f9731633;border-radius:10px;padding:8px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Maintenance</button>'
-            +'<button onclick="alert(\'Role assignment coming in v5.0.0 Session 3\')" style="background:#fbbf2422;border:1px solid #fbbf2433;border-radius:10px;padding:8px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🤝 Partner</button>'
+            +'<button onclick="assignPendingRole(\''+u.id+'\',\'tenant\')" style="background:#6366f122;border:1px solid #6366f133;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏠 Tenant</button>'
+            +'<button onclick="assignPendingRole(\''+u.id+'\',\'manager\')" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:10px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏢 Manager</button>'
+            +'<button onclick="assignPendingRole(\''+u.id+'\',\'maintenance\')" style="background:#f9731622;border:1px solid #f9731633;border-radius:10px;padding:8px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Maintenance</button>'
+            +'<button onclick="assignPendingRole(\''+u.id+'\',\'partner\')" style="background:#fbbf2422;border:1px solid #fbbf2433;border-radius:10px;padding:8px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🤝 Partner</button>'
             +'</div></div>';}).join('')
         :'')
         // Unused keys

@@ -1474,6 +1474,14 @@ function makePDF(t,month,year){
 }
 
 // ── Actions ────────────────────────────────────────────────────────
+function formatInviteKey(el){
+  var v=el.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  var chunks=[];
+  for(var i=0;i<v.length&&i<16;i+=4) chunks.push(v.slice(i,i+4));
+  S.authInviteKey=chunks.join('-');
+  el.value=S.authInviteKey;
+}
+
 function doAuth(){
   var f=fb();
   var isSignup=S.authMode==='tenant';
@@ -1488,6 +1496,7 @@ function doAuth(){
     // Check if legacy tenant (already in tenantProfiles — no key needed)
     var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
     S.authLoading=true;S.authError='';render();
+    console.log('[AUTH] Checking tenantProfiles for:',email);
     f.getDoc(f.doc(f.db,'tenantProfiles/'+pid(email))).then(function(d){
       if(d&&d.exists&&d.exists()){
         // Legacy tenant — bypass key requirement
@@ -2292,7 +2301,7 @@ function _doRender(){
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
       +'<div><label>Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/><button onclick="S.showPassword=!S.showPassword;render()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7c7a90;font-size:16px;padding:0">'+(S.showPassword?'🙈':'👁')+'</button></div></div>'
-      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div><div style="margin-top:12px"><label>Invite Key</label><input type="text" placeholder="XXXX-XXXX-XXXX-XXXX" value="'+esc(S.authInviteKey||'')+'" oninput="S.authInviteKey=this.value.toUpperCase()" style="font-family:monospace;letter-spacing:2px"/><div style="font-size:11px;color:#7c7a90;margin-top:4px">Required for new accounts. Contact your landlord.</div></div>':'')
+      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div><div style="margin-top:12px"><label>Invite Key</label><input type="text" placeholder="XXXX-XXXX-XXXX-XXXX" value="'+esc(S.authInviteKey||'')+'" oninput="formatInviteKey(this)" style="font-family:monospace;letter-spacing:2px"/><div style="font-size:11px;color:#7c7a90;margin-top:4px">Required for new accounts. Contact your landlord.</div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="clickSound();doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="margin-top:10px"><button onclick="doForgotPassword()" style="background:#6366f122;border:2px solid #6366f144;border-radius:12px;color:#6366f1;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;padding:12px 20px;width:100%;transition:all 0.2s">🔑 Forgot Password?</button><div style="font-size:10px;color:#4a4860;text-align:center;margin-top:6px">Reset link will be emailed to you. Check junk/spam if it doesn\'t arrive.</div></div>':'')

@@ -1493,51 +1493,36 @@ function doAuth(){
   }
   var email=S.authEmail.trim().toLowerCase();
   if(isSignup){
-    // Check if legacy tenant (already in tenantProfiles — no key needed)
     var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+    var keyInput=(S.authInviteKey||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!keyInput){
+      S.authError='An invite key is required. Contact your landlord.';render();return;
+    }
     S.authLoading=true;S.authError='';render();
-    console.log('[AUTH] Checking tenantProfiles for:',email);
-    f.getDoc(f.doc(f.db,'tenantProfiles/'+pid(email))).then(function(d){
-      if(d&&d.exists&&d.exists()){
-        // Legacy tenant — bypass key requirement
-        return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword);
+    f.getDocs(f.query(f.collection(f.db,'users/'+LANDLORD_UID+'/inviteKeys'))).then(function(snap){
+      var matchKey=null;
+      snap.docs.forEach(function(doc){
+        var k=doc.data();
+        var storedKey=(k.key||'').replace(/-/g,'');
+        if(storedKey===keyInput&&!k.used) matchKey=Object.assign({},k,{id:doc.id});
+      });
+      if(!matchKey){
+        S.authError='Invalid or already used invite key.';S.authLoading=false;render();return;
       }
-      // New user — validate invite key
-      var keyInput=(S.authInviteKey||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-      if(!keyInput){
-        S.authError='An invite key is required. Contact your landlord.';S.authLoading=false;render();return Promise.reject({handled:true});
-      }
-      // Search all inviteKeys for this landlord
-      return f.getDocs(f.query(f.collection(f.db,'users/'+LANDLORD_UID+'/inviteKeys'))).then(function(snap){
-        var matchKey=null;
-        snap.docs.forEach(function(doc){
-          var k=doc.data();
-          var storedKey=(k.key||'').replace(/-/g,'');
-          if(storedKey===keyInput&&!k.used) matchKey=Object.assign({},k,{id:doc.id});
-        });
-        if(!matchKey){
-          S.authError='Invalid or already used invite key.';S.authLoading=false;render();return Promise.reject({handled:true});
-        }
-        // Valid key — create account
-        return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword).then(function(cred){
-          var uid=cred.user.uid;
-          // Mark key as used
-          f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/inviteKeys/'+matchKey.id),Object.assign({},matchKey,{used:true,usedBy:email,usedAt:new Date().toISOString()}));
-          // Create pending user entry
-          f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/pendingUsers/'+uid),{
-            id:uid,uid:uid,email:email,
-            name:email.split('@')[0],
-            keyUsed:matchKey.key,
-            keyNote:matchKey.note||'',
-            createdAt:new Date().toISOString()
-          });
-          return cred;
+      return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword).then(function(cred){
+        var uid=cred.user.uid;
+        f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/inviteKeys/'+matchKey.id),Object.assign({},matchKey,{used:true,usedBy:email,usedAt:new Date().toISOString()}));
+        f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/pendingUsers/'+uid),{
+          id:uid,uid:uid,email:email,
+          name:email.split('@')[0],
+          keyUsed:matchKey.key,
+          keyNote:matchKey.note||'',
+          createdAt:new Date().toISOString()
         });
       });
     }).then(function(){
       S.authLoading=false;S.authConfirmPassword='';S.authInviteKey='';
     }).catch(function(e){
-      if(e&&e.handled) return;
       S.authError=e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message||'Signup failed.';
       S.authLoading=false;render();
     });

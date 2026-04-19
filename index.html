@@ -1254,6 +1254,7 @@ function subscribeMileage(uid){
 }
 function saveMileage(m){return fsSet('users/'+S.user.uid+'/mileage/'+m.id,m);}
 function delMileage(id){return fsDel('users/'+S.user.uid+'/mileage/'+id);}
+function editMileage(id){var m=S.mileageLog.find(function(x){return x.id===id;});if(m){playTap('home');openSheet('addMileage',JSON.parse(JSON.stringify(m)));}}
 
 function subscribeManagerData(uid,ap){
   ap=ap||[];
@@ -1887,11 +1888,17 @@ function renderSheet(){
   }
   else if(S.sheet==='addProperty'||S.sheet==='editProperty'){
     var d=S.sheetData; var isEdit=S.sheet==='editProperty';
-    title=(isEdit?'✏️ Edit':'🏢 Add')+' Property';
+    // Migrate legacy units count to array
+    if(!d.unitsList){
+      var legacyCount=Number(d.units)||0;
+      d.unitsList=[];
+      for(var ui=0;ui<legacyCount;ui++) d.unitsList.push({number:ui+1,note:''});
+    }
+    title=(isEdit?'\u270f\ufe0f Edit':'\U0001f3e2 Add')+' Property';
     var isPersP=d.isPersonal===true;
-    var persToggle='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2e2c3d;margin-bottom:4px"><span style="font-size:14px;font-weight:700;color:#f0eef8">Personal Residence</span><div onclick="S.sheetData.isPersonal=!S.sheetData.isPersonal;renderSheet()" style="width:48px;height:26px;border-radius:99px;background:'+(isPersP?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(isPersP?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'
-      +(isPersP?inp('Office Space %','number',d.officePercent||'','officePercent','e.g. 10'):'');
-    body='<div class="frow">'+persToggle+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+inp('Number of Units','number',d.units||'','units')+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
+    var persToggle='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2e2c3d;margin-bottom:4px"><span style="font-size:14px;font-weight:700;color:#f0eef8">Personal Residence</span><div onclick="S.sheetData.isPersonal=!S.sheetData.isPersonal;renderSheet()" style="width:48px;height:26px;border-radius:99px;background:'+(isPersP?'#8b5cf6':'#2e2c3d')+';position:relative;cursor:pointer;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(isPersP?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div></div>'      +(isPersP?inp('Office Space %','number',d.officePercent||'','officePercent','e.g. 10'):'');
+    var unitsBuilder='<div><label>Units</label>'      +(d.unitsList.map(function(u,i){return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'        +'<div style="width:32px;height:32px;border-radius:8px;background:#6366f122;border:1px solid #6366f144;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#6366f1;flex-shrink:0">'+u.number+'</div>'        +'<input placeholder="Note (e.g. Basement, Mary T.)" value="'+esc(u.note||'')+'" oninput="S.sheetData.unitsList['+i+'].note=this.value" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:7px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/>'        +'<button onclick="S.sheetData.unitsList.splice('+i+',1);S.sheetData.unitsList.forEach(function(u,j){u.number=j+1;});renderSheet()" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 8px;cursor:pointer;color:#f87171;flex-shrink:0">'+ICO.trash+'</button>'        +'</div>';}).join(''))      +'<button onclick="var n=(S.sheetData.unitsList||[]).length+1;if(!S.sheetData.unitsList)S.sheetData.unitsList=[];S.sheetData.unitsList.push({number:n,note:\'\'}); renderSheet()" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif;margin-top:4px">+ Add Unit</button>'      +'</div>';
+    body='<div class="frow">'+persToggle+inp('Property Name','text',d.name||'','name')+inp('Street Address','text',d.address||'','address')+inp('City','text',d.city||'','city')+inp('Postal Code','text',d.postal||'','postal')+unitsBuilder+inp('Notes (optional)','text',d.notes||'','notes')+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditProp()':'doSheetAddProp()')+'">'+( isEdit?'Save Changes':'Add Property')+'</button></div>';
   }
     else if(S.sheet==='editUtility'){
@@ -2086,7 +2093,9 @@ function renderSheet(){
     var workerSel=workers.length>0
       ?'<select onchange="S.sheetData.workerId=this.value;S.sheetData.workerName=S.tenants.find(function(t){return t.id===this.value;})?S.tenants.find(function(t){return t.id===this.value;}).name:\'\';renderSheet()"><option value="">— Select worker —</option>'+workers.map(function(w){return '<option value="'+w.id+'"'+(d.workerId===w.id?' selected':'')+'>'+esc(w.name)+'</option>';}).join('')+'</select>'
       :'<div style="font-size:13px;color:#7c7a90;padding:12px;background:#22202f;border-radius:12px">No workers assigned yet. Give a tenant Maintenance or Manager access first.</div>';
-    body='<div class="frow"><div><label>Worker</label>'+workerSel+'</div>'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+inp('Notes (optional)','text',d.notes||'','notes','What was done?')+'</div>';
+    var propSel='<div><label>Property</label><select onchange="S.sheetData.property=this.value;S.sheetData.unit=\'\';renderSheet()"><option value="">— Select property —</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>';
+    var unitSel=d.property?(function(){var prop=S.properties.find(function(p){return p.name===d.property;});var ul=prop&&prop.unitsList?prop.unitsList:[];if(!ul.length)return '';return '<div><label>Unit</label><select onchange="S.sheetData.unit=this.value"><option value="">— Select unit —</option>'+ul.map(function(u){return '<option value="Unit '+u.number+'"'+(d.unit===('Unit '+u.number)?' selected':'')+'>Unit '+u.number+(u.note?' — '+esc(u.note):'')+'</option>';}).join('')+'</select></div>';})():'';
+    body='<div class="frow"><div><label>Worker</label>'+workerSel+'</div>'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+propSel+unitSel+inp('Notes (optional)','text',d.notes||'','notes','What was done?')+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSheetAddShift()">Log Hours</button></div>';
   }
 
@@ -2191,10 +2200,10 @@ function doSheetAddShift(){
   var worker=S.tenants.find(function(t){return t.id===d.workerId;});
   closeSheet();
   var wid=worker&&worker.email?pid(worker.email):d.workerId;
-  saveShift({id:mkid(),workerId:wid,workerName:worker?worker.name:'',hourlyRate:Number(worker&&worker.hourlyRate)||0,hours:Number(d.hours),date:d.date,notes:d.notes||'',paid:false,createdAt:new Date().toISOString()});
+  saveShift({id:mkid(),workerId:wid,workerName:worker?worker.name:'',hourlyRate:Number(worker&&worker.hourlyRate)||0,hours:Number(d.hours),date:d.date,notes:d.notes||'',property:d.property||'',unit:d.unit||'',paid:false,createdAt:new Date().toISOString()});
 }
 function doSheetEditTenant(){var d=S.sheetData;closeSheet();saveTenant(Object.assign({},d,{rent:Number(d.rent)||0}));}
-function doSheetAddProp(){if(!S.sheetData.name){alert('Property name required');return;}var d=S.sheetData;closeSheet();saveProp(Object.assign({},d,{id:mkid()}));}
+function doSheetAddProp(){if(!S.sheetData.name){alert('Property name required');return;}var d=S.sheetData;var ul=d.unitsList||[];closeSheet();saveProp(Object.assign({},d,{id:mkid(),unitsList:ul,units:ul.length}));}
 
 function doSheetSaveAsset(){
   var d=S.sheetData;
@@ -2219,7 +2228,7 @@ function doSheetSaveMortgage(){
   closeSheet();
   saveMortgage(Object.assign({},d,{id:d.id||mkid()}));
 }
-function doSheetEditProp(){var d=S.sheetData;closeSheet();saveProp(d);}
+function doSheetEditProp(){var d=S.sheetData;var ul=d.unitsList||[];closeSheet();saveProp(Object.assign({},d,{unitsList:ul,units:ul.length}));}
 function doSheetAddUtil(){if(!S.sheetData.name||!S.sheetData.amount){alert('Name and amount required');return;}var d=S.sheetData;closeSheet();var utilDate=new Date(S.viewYear,S.viewMonth,1).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});var mk=S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0');saveUtil({id:mkid(),name:d.name,amount:Number(d.amount)||0,property:d.property||'',date:utilDate},mk);}
 function doSheetEditReceipt(){var r=Object.assign({},S.sheetData,{total:Number(S.sheetData.total)});closeSheet();saveReceipt(r);}
 function applyMonthPicker(){
@@ -2858,7 +2867,7 @@ function _doRender(){
         +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:0 0 8px;padding:0 4px">GENERATE INVITE KEY</div>'
         +'<div class="card" style="padding:14px 16px">'
         +'<input placeholder="Note (e.g. Ryan\'s key)" value="'+esc(S.newKeyNote||'')+'" oninput="S.newKeyNote=this.value" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none;margin-bottom:10px;box-sizing:border-box"/>'
-        +'<button onclick="generateInviteKey()" style="width:100%;background:#6366f1;border:none;border-radius:10px;padding:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">⚡ Generate Key</button>'
+        +'<button onclick="playTap(\'home\');generateInviteKey()" style="width:100%;background:#6366f1;border:none;border-radius:10px;padding:10px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">⚡ Generate Key</button>'
         +'</div>'
         // Pending users
         +(pendingCount>0?'<div style="font-size:11px;font-weight:800;color:#f87171;letter-spacing:1px;margin:16px 0 8px;padding:0 4px">PENDING USERS ('+pendingCount+')</div>'
@@ -2868,14 +2877,14 @@ function _doRender(){
             +'<div style="font-size:12px;color:#7c7a90">'+esc(u.email||'')+'</div>'
             +(u.keyNote?'<div style="font-size:11px;color:#6366f1;margin-top:2px">Key note: '+esc(u.keyNote)+'</div>':'')
             +'</div>'
-            +'<button onclick="deletePendingUser(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
+            +'<button onclick="playTap(\'home\');deletePendingUser(\''+u.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
             +'</div>'
             +'<div style="font-size:11px;color:#7c7a90;margin-bottom:8px">Joined: '+esc(u.createdAt?u.createdAt.slice(0,10):'')+'</div>'
             +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-            +'<button onclick="assignPendingRole(\''+u.id+'\',\'tenant\')" style="background:#6366f122;border:1px solid #6366f133;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏠 Tenant</button>'
-            +'<button onclick="assignPendingRole(\''+u.id+'\',\'manager\')" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:10px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏢 Manager</button>'
-            +'<button onclick="assignPendingRole(\''+u.id+'\',\'maintenance\')" style="background:#f9731622;border:1px solid #f9731633;border-radius:10px;padding:8px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Maintenance</button>'
-            +'<button onclick="assignPendingRole(\''+u.id+'\',\'partner\')" style="background:#fbbf2422;border:1px solid #fbbf2433;border-radius:10px;padding:8px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🤝 Partner</button>'
+            +'<button onclick="playTap(\'home\');assignPendingRole(\''+u.id+'\',\'tenant\')" style="background:#6366f122;border:1px solid #6366f133;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏠 Tenant</button>'
+            +'<button onclick="playTap(\'home\');assignPendingRole(\''+u.id+'\',\'manager\')" style="background:#8b5cf622;border:1px solid #8b5cf633;border-radius:10px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🏢 Manager</button>'
+            +'<button onclick="playTap(\'home\');assignPendingRole(\''+u.id+'\',\'maintenance\')" style="background:#f9731622;border:1px solid #f9731633;border-radius:10px;padding:8px;color:#f97316;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🔧 Maintenance</button>'
+            +'<button onclick="playTap(\'home\');assignPendingRole(\''+u.id+'\',\'partner\')" style="background:#fbbf2422;border:1px solid #fbbf2433;border-radius:10px;padding:8px;color:#fbbf24;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">🤝 Partner</button>'
             +'</div></div>';}).join('')
         :'')
         // Unused keys
@@ -2884,7 +2893,7 @@ function _doRender(){
             +'<div><div style="font-size:13px;font-weight:700;color:#f0eef8;letter-spacing:2px">'+k.key+'</div>'
             +(k.note?'<div style="font-size:11px;color:#7c7a90;margin-top:2px">'+esc(k.note)+'</div>':'')
             +'</div>'
-            +'<button onclick="deleteInviteKey(\''+k.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
+            +'<button onclick="playTap(\'home\');deleteInviteKey(\''+k.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171">'+ICO.trash+'</button>'
             +'</div>';}).join('')
         :'')
         // Used keys
@@ -3433,7 +3442,7 @@ function _doRender(){
         +S.properties.map(function(p){return '<button onclick="S.mileageFilter=\''+esc(p.name)+'\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter===p.name?'#6366f1':'#22202f')+';color:'+(S.mileageFilter===p.name?'#fff':'#7c7a90')+'">'+esc(p.name)+'</button>';}).join('')
         +'<button onclick="S.mileageFilter=\'Other\';render()" style="padding:4px 10px;border-radius:99px;border:none;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.mileageFilter==='Other'?'#6366f1':'#22202f')+';color:'+(S.mileageFilter==='Other'?'#fff':'#7c7a90')+'">Other</button>'
         +'</div>'
-        +curMileageProp.slice(0,S.showAllMileage?9999:S.dispMileage).map(function(m){var mColor=m.addedBy==='partner'?'#fbbf24':'#4ade80';var hastrip=m.tripFrom||m.tripTo||(m.tripStops&&m.tripStops.length>0);var tripLine=hastrip?[m.tripFrom].concat(m.tripStops||[]).concat([m.tripTo]).filter(function(s){return s;}).join(' → '):'';return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d;border-left:3px solid '+mColor+';padding-left:8px"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div>'+(tripLine?'<div style="font-size:11px;color:#6366f1;margin-top:2px">'+esc(tripLine)+'</div>':'')+'</div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="openSheet(\'addMileage\',JSON.parse(JSON.stringify(m)))" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.edit+'</button><button onclick="delMileage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:6px;cursor:pointer;color:#f87171;padding:4px 6px">'+ICO.trash+'</button></div></div></div>';}).join('')
+        +curMileageProp.slice(0,S.showAllMileage?9999:S.dispMileage).map(function(m){var mColor=m.addedBy==='partner'?'#fbbf24':'#4ade80';var hastrip=m.tripFrom||m.tripTo||(m.tripStops&&m.tripStops.length>0);var tripLine=hastrip?[m.tripFrom].concat(m.tripStops||[]).concat([m.tripTo]).filter(function(s){return s;}).join(' → '):'';return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d;border-left:3px solid '+mColor+';padding-left:8px"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:700">'+m.date+'</div><div style="font-size:11px;color:#7c7a90">'+esc(m.property)+(m.notes?' · '+esc(m.notes):'')+'</div>'+(tripLine?'<div style="font-size:11px;color:#6366f1;margin-top:2px">'+esc(tripLine)+'</div>':'')+'</div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:14px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span><button onclick="editMileage(\'+m.id+\')" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:2px">'+ICO.edit+'</button><button onclick="delMileage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:6px;cursor:pointer;color:#f87171;padding:4px 6px">'+ICO.trash+'</button></div></div></div>';}).join('')
         +(curMileageProp.length>5?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllMileage=!S.showAllMileage;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllMileage?'Show Less':'View All '+curMileageProp.length+' trips')+'</button></div>':'')
         +'</div>'
       :'')

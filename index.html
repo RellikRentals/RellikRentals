@@ -179,7 +179,7 @@ var ICO = {
 
 // ── State ──────────────────────────────────────────────────────────
 var S = {
-  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', authInviteKey:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true, _partnerOnboarded:true,
+  authReady:false, user:null, authMode:'tenantLogin', authEmail:'', authPassword:'', authConfirmPassword:'', authInviteKey:'', authName:'', authPhone:'', showPassword:false, splashDone:false, showLoginAnimation:true, isPartner:false, partnerEmail:'', partnerQuickMode:true, _partnerOnboarded:true,
   authEmail:'', authPassword:'', authError:'', authLoading:false,
   isTenant:false, tenantProfile:null,
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
@@ -937,8 +937,16 @@ function assignPendingRole(pendingId,role){
   var u=S.pendingUsers.find(function(x){return x.id===pendingId;});
   if(!u)return;
   var LANDLORD_UID='192dQJClOZShp9wbdDevZUHDR922';
+  var f=fb();
+  // Mark the invite key as used now that landlord is assigning role
+  if(u.keyId){
+    var matchedKey=S.inviteKeys.find(function(k){return k.id===u.keyId;});
+    if(matchedKey){
+      f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/inviteKeys/'+u.keyId),Object.assign({},matchedKey,{used:true,usedBy:u.email,usedAt:new Date().toISOString()}));
+    }
+  }
   if(role==='tenant'){
-    openSheet('addTenant',{name:u.name||'',email:u.email||'',_pendingId:pendingId});
+    openSheet('addTenant',{name:u.name||'',email:u.email||'',phone:u.phone||'',_pendingId:pendingId});
   }else if(role==='partner'){
     if(confirm('Assign '+u.email+' as partner?')){
       S.partnerEmail=u.email.toLowerCase();
@@ -948,7 +956,6 @@ function assignPendingRole(pendingId,role){
     }
   }else if(role==='manager'||role==='maintenance'){
     if(confirm('Assign '+u.email+' as '+(role==='manager'?'Property Manager':'Maintenance Worker')+'?')){
-      var f=fb();
       var data={uid:u.uid,landlordUid:LANDLORD_UID,email:u.email,name:u.name||u.email,canPropertyManager:role==='manager',canMaintenance:role==='maintenance'||role==='manager'};
       f.setDoc(f.doc(f.db,'managerIndex/'+u.uid),data,{merge:true}).then(function(){
         fsDel('users/'+LANDLORD_UID+'/pendingUsers/'+pendingId);
@@ -1535,17 +1542,18 @@ function doAuth(){
       }
       return f.createUserWithEmailAndPassword(f.auth,email,S.authPassword).then(function(cred){
         var uid=cred.user.uid;
-        f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/inviteKeys/'+matchKey.id),Object.assign({},matchKey,{used:true,usedBy:email,usedAt:new Date().toISOString()}));
         f.setDoc(f.doc(f.db,'users/'+LANDLORD_UID+'/pendingUsers/'+uid),{
           id:uid,uid:uid,email:email,
-          name:email.split('@')[0],
+          name:S.authName||email.split('@')[0],
+          phone:S.authPhone||'',
           keyUsed:matchKey.key,
+          keyId:matchKey.id,
           keyNote:matchKey.note||'',
           createdAt:new Date().toISOString()
         });
       });
     }).then(function(){
-      S.authLoading=false;S.authConfirmPassword='';S.authInviteKey='';
+      S.authLoading=false;S.authConfirmPassword='';S.authInviteKey='';S.authName='';S.authPhone='';
     }).catch(function(e){
       S.authError=e.code==='auth/email-already-in-use'?'Email already registered.':e.code==='auth/weak-password'?'Password needs 6+ characters.':e.message||'Signup failed.';
       S.authLoading=false;render();
@@ -1763,9 +1771,10 @@ function handleFileScan(file){
       if(!result||typeof result!=='object'){S.scanError='Could not read receipt — try a clearer photo.';S.scanning=false;render();return;}
       // Apply vendor alias map
       if(S.vendorAliases&&S.vendorAliases.length>0){
-        var vendorCheck=(result.vendor||'').toLowerCase()+'|'+(result.vendor||'');
+        var vendorCheck=(result.vendor||'').toLowerCase();
+        var fullCheck=vendorCheck+'|'+clean.toLowerCase();
         S.vendorAliases.forEach(function(a){
-          if(vendorCheck.toLowerCase().indexOf(a.trigger.toLowerCase())!==-1){
+          if(fullCheck.indexOf(a.trigger.toLowerCase())!==-1){
             result.vendor=a.name;
             if(a.flipDate&&result.date&&result.date.match(/^\d{4}-\d{2}-\d{2}$/)){
               var parts=result.date.split('-');
@@ -2310,7 +2319,7 @@ function _doRender(){
       +'<div class="frow">'
       +'<div><label>Email</label><input type="email" placeholder="you@email.com" value="'+esc(S.authEmail)+'" oninput="S.authEmail=this.value" onkeydown="if(event.key===\'Enter\')doAuth()"/></div>'
       +'<div><label>Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authPassword)+'" oninput="S.authPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/><button onclick="S.showPassword=!S.showPassword;render()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7c7a90;font-size:16px;padding:0">'+(S.showPassword?'🙈':'👁')+'</button></div></div>'
-      +(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div><div style="margin-top:12px"><label>Invite Key</label><input type="text" placeholder="XXXX-XXXX-XXXX-XXXX" value="'+esc(S.authInviteKey||'')+'" oninput="formatInviteKey(this)" style="font-family:monospace;letter-spacing:2px"/><div style="font-size:11px;color:#7c7a90;margin-top:4px">Required for new accounts. Contact your landlord.</div></div>':'')
+      +(isSignup?'<div><label>Your Name</label><input type="text" placeholder="John Smith" value="'+esc(S.authName||'')+'" oninput="S.authName=this.value" style=""/></div>':'')+(isSignup?'<div><label>Phone Number</label><input type="tel" placeholder="705-555-1234" value="'+esc(S.authPhone||'')+'" oninput="S.authPhone=this.value" style=""/></div>':'')+(isSignup?'<div><label>Confirm Password</label><div style="position:relative"><input type="'+(S.showPassword?'text':'password')+'" placeholder="••••••••" value="'+esc(S.authConfirmPassword)+'" oninput="S.authConfirmPassword=this.value" onkeydown="if(event.key===\'Enter\')doAuth()" style="padding-right:44px"/></div></div><div style="margin-top:12px"><label>Invite Key</label><input type="text" placeholder="XXXX-XXXX-XXXX-XXXX" value="'+esc(S.authInviteKey||'')+'" oninput="formatInviteKey(this)" style="font-family:monospace;letter-spacing:2px"/><div style="font-size:11px;color:#7c7a90;margin-top:4px">Required for new accounts. Contact your landlord.</div></div>':'')
       +'</div>'
       +'<button class="btn btn-primary" onclick="clickSound();doAuth()" '+(S.authLoading?'disabled':'')+'>'+( S.authLoading?'⏳ Please wait…':S.authMode==='login'||S.authMode==='tenantLogin'?'Log In':'Create Account')+'</button>'
       +((S.authMode==='login'||S.authMode==='tenantLogin')?'<div style="margin-top:10px"><button onclick="doForgotPassword()" style="background:#6366f122;border:2px solid #6366f144;border-radius:12px;color:#6366f1;font-size:13px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif;padding:12px 20px;width:100%;transition:all 0.2s">🔑 Forgot Password?</button><div style="font-size:10px;color:#4a4860;text-align:center;margin-top:6px">Reset link will be emailed to you. Check junk/spam if it doesn\'t arrive.</div></div>':'')

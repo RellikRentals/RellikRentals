@@ -727,7 +727,7 @@ function checkAndCreditBudgets(uid){
       if(cfg.lastCredited===curKey)return; // Already credited this period
       var creditDay=Number(cfg.creditDay)||1;
       if(today.getDate()<creditDay)return; // Not time yet
-      // Credit the budget
+      // Credit the budget — add to existing balance (mirrors monthly in-trust deposit)
       var newBalance=(Number(cfg.balance)||0)+(Number(cfg.amount)||500);
       fsSet('users/'+uid+'/payrollBudgets/'+cfg.id,Object.assign({},cfg,{balance:newBalance,lastCredited:curKey}));
     });
@@ -2648,7 +2648,9 @@ function _doRender(){
   var paidCount=S.tenants.filter(function(t){return t.paid;}).length;
   var totalExp=S.receipts.reduce(function(a,r){return a+(Number(r.total)||0);},0);
   var totalUtil=S.utilities.reduce(function(a,u){return a+(Number(u.amount)||0);},0);
-  var netIncome=collected-totalExp-totalUtil;
+  var curMPrefix=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
+  var totalPayroll=S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(curMPrefix);}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+  var netIncome=collected-totalExp-totalUtil-totalPayroll;
 
   // Notification badges
   var newRequestCount=S.maintenanceRequests.filter(function(r){return r.status==='New';}).length;
@@ -2693,7 +2695,9 @@ function _doRender(){
     var totalExpF=S.receipts.filter(function(r){return (r.date||'').startsWith(viewedMonthPrefix)&&(S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all');}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var ytdExpenses=S.receipts.filter(function(r){return ((r.date||'').startsWith(String(curYear)))&&(S.selectedProperty==='all'||(r.property||'all')===S.selectedProperty||(r.property||'all')==='all');}).reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var totalUtilF=filteredUtils.reduce(function(a,u){return a+(Number(u.amount)||0);},0);
-    var netIncomeF=collectedF-totalExpF-totalUtilF;
+    var totalPayrollF=S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(viewedMonthPrefix);}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+    var ytdPayroll=S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(String(curYear));}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+    var netIncomeF=collectedF-totalExpF-totalUtilF-totalPayrollF;
     var propLabel=S.selectedProperty==='all'?'All Properties':S.selectedProperty;
 
     // YTD calculations (current year)
@@ -2703,7 +2707,7 @@ function _doRender(){
     var ytdUtil=S.ytdUtilities ? S.ytdUtilities.filter(function(u){
       return S.selectedProperty==='all'||u.property===S.selectedProperty;
     }).reduce(function(a,u){return a+(Number(u.amount)||0);},0) : 0;
-    var ytdNet=ytdRent-ytdExpenses-ytdUtil;
+    var ytdNet=ytdRent-ytdExpenses-ytdUtil-ytdPayroll;
 
     // Property dropdown
     var propDropdown='<div style="padding:0 16px 12px">'
@@ -3003,7 +3007,8 @@ function _doRender(){
     var ytdUtilT=S.ytdUtilities?S.ytdUtilities.filter(function(u){return (u.date||'').indexOf(String(curY))!==-1;}).reduce(function(a,u){return a+(Number(u.amount)||0);},0):0;
     var totalKmT=S.mileageLog.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
     var mileDeductionT=totalKmT<=5000?totalKmT*0.73:(5000*0.73)+((totalKmT-5000)*0.67);
-    var netIncomeT=ytdRentT-ytdExpT-ytdUtilT-mileDeductionT;
+    var ytdPayrollT=S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(String(curY));}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+    var netIncomeT=ytdRentT-ytdExpT-ytdUtilT-mileDeductionT-ytdPayrollT;
     // ── Category-based Deductibles ─────────────────────────────
     var dedCats=S.dedCategories||[];
     var inp2Style='background:#1a1826;border:1px solid #2e2c3d;border-radius:8px;padding:6px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;width:100%;box-sizing:border-box';

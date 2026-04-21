@@ -185,7 +185,7 @@ var S = {
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
-  payrollShifts:[], payrollBudgets:{}, showAllBudgetWorkers:false, vendorAliases:[], inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
+  payrollShifts:[], payrollBudgets:{}, myBudget:null, showAllBudgetWorkers:false, vendorAliases:[], inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3, dispTodos:5,
   mgCollapsed:{todos:true,tenants:true,requests:true,expenses:true},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -279,10 +279,12 @@ function subscribeTenantPortal(email){
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid&&!prevMaint){
         subscribeTodos(S.tenantProfile.landlordUid);
         subscribeWorkerShifts(S.tenantProfile);
+          subscribeWorkerBudget(S.tenantProfile);
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid&&!prevMgr){
         subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
         subscribeWorkerShifts(S.tenantProfile);
+          subscribeWorkerBudget(S.tenantProfile);
       }
       // Also subscribe if already has role but hasn't subscribed yet, or assignedProperties changed
       if(S.tenantProfile.canMaintenance&&S.tenantProfile.landlordUid&&!(S.todoItems&&S.todoItems.length>=0&&S._maint_subscribed)){
@@ -296,6 +298,7 @@ function subscribeTenantPortal(email){
           S._shifts_subscribed=true;
           S._shifts_email=newWorkerEmail;
           subscribeWorkerShifts(S.tenantProfile);
+          subscribeWorkerBudget(S.tenantProfile);
         }
       }
       if(S.tenantProfile.canPropertyManager&&S.tenantProfile.landlordUid){
@@ -305,6 +308,7 @@ function subscribeTenantPortal(email){
           S._mgr_ap=newAp;
           subscribeManagerData(S.tenantProfile.landlordUid,S.tenantProfile.assignedProperties||[]);
           subscribeWorkerShifts(S.tenantProfile);
+          subscribeWorkerBudget(S.tenantProfile);
         }
       }
     }
@@ -682,6 +686,19 @@ function subscribeWorkerShifts(tp){
     S.payrollShifts=all
       .filter(function(s){return s.workerId===myId;})
       .sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    render();
+  }));
+}
+
+function subscribeWorkerBudget(tp){
+  // Worker subscribes to their own budget entry in landlord's payrollBudgets
+  if(!tp||!tp.landlordUid||!tp.email)return;
+  var f=fb();var db=f.db;var col=f.collection;var snap=f.onSnapshot;var q=f.query;
+  var myId=pid((tp.email||'').toLowerCase().trim());
+  _unsubs.push(snap(q(col(db,'users/'+tp.landlordUid+'/payrollBudgets')),function(s){
+    var budget=null;
+    s.docs.forEach(function(d){if(d.id===myId)budget=Object.assign({},d.data(),{id:d.id});});
+    S.myBudget=budget;
     render();
   }));
 }
@@ -2326,7 +2343,7 @@ function _doRender(){
       +'<div style="margin-top:6px;padding-top:16px;border-top:1px solid #2e2c3d">'
       +'<div style="font-size:12px;color:#7c7a90;text-align:center;margin-bottom:10px;font-weight:600">OTHER OPTIONS</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-      +'<div style="display:flex;gap:8px;margin-top:6px">'      +(S.authMode!=='tenant'?'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#7c7a90;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 New Tenant? Sign Up</button>':'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px;color:#6366f1;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to Login</button>')      +'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:6px;justify-content:center">'      +(S.authMode!=='tenant'?'<button onclick="S.authMode=\'tenant\';S.authError=\'\';render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 24px;color:#7c7a90;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">🔑 New Tenant? Sign Up</button>':'<button onclick="S.authMode=\'tenantLogin\';S.authError=\'\';render()" style="background:#22202f;border:1px solid #2e2c3d;border-radius:12px;padding:10px 24px;color:#6366f1;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">← Back to Login</button>')      +'</div>'
       +'</div></div>'
       
       +'</div></div>';
@@ -2492,6 +2509,24 @@ function _doRender(){
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">'
         +'<div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px"><div style="font-size:22px;font-weight:800;color:#f87171">'+allReqsSorted.filter(function(r){return r.status==="New";}).length+'</div><div style="font-size:11px;color:rgba(255,255,255,0.5)">New Requests</div></div>'
         +'<div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px"><div style="font-size:22px;font-weight:800;color:#fbbf24">'+allReqsSorted.filter(function(r){return r.status==="In Progress";}).length+'</div><div style="font-size:11px;color:rgba(255,255,255,0.5)">In Progress</div></div>'
+        +(function(){
+            var curM=new Date().getMonth();var curY=new Date().getFullYear();
+            var mthShifts=(S.payrollShifts||[]).filter(function(s){var d=new Date(s.date);return d.getMonth()===curM&&d.getFullYear()===curY;});
+            var mthHrs=mthShifts.reduce(function(a,s){return a+(Number(s.hours)||0);},0);
+            var mthEarned=mthShifts.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+            var ytdShifts=(S.payrollShifts||[]).filter(function(s){return (s.date||'').startsWith(String(curY));});
+            var ytdEarned=ytdShifts.reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+            var balance=S.myBudget?Number(S.myBudget.balance)||0:null;
+            var balColor=balance===null?'#7c7a90':balance>100?'#4ade80':balance>0?'#fbbf24':'#f87171';
+            return '<div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px;grid-column:span 2">'
+              +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'
+              +'<div><div style="font-size:16px;font-weight:800;color:#6366f1">'+mthHrs.toFixed(1)+'h</div><div style="font-size:10px;color:rgba(255,255,255,0.5)">Hrs This Month</div></div>'
+              +'<div><div style="font-size:16px;font-weight:800;color:#4ade80">$'+mthEarned.toFixed(0)+'</div><div style="font-size:10px;color:rgba(255,255,255,0.5)">Earned This Month</div></div>'
+              +'<div><div style="font-size:16px;font-weight:800;color:#4ade80">$'+ytdEarned.toFixed(0)+'</div><div style="font-size:10px;color:rgba(255,255,255,0.5)">YTD Earned</div></div>'
+              +'</div>'
+              +(balance!==null?'<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:rgba(255,255,255,0.5)">Budget Balance</div><div style="font-size:18px;font-weight:800;color:'+balColor+'">$'+balance.toFixed(2)+'</div></div>':'')
+              +'</div>';
+          })()
         +'</div></div>'
 
         +'<div style="padding:0 16px">'

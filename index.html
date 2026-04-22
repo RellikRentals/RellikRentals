@@ -567,7 +567,18 @@ function delMortgage(id){if(confirm('Delete this mortgage?'))fsDel('users/'+S.us
 function saveTenant(t){
   var p=t.email?pid(t.email):null;
   var proms=[fsSet('users/'+S.user.uid+'/tenants/'+t.id,t)];
-  if(p){proms.push(fsSet('tenantProfiles/'+p,{email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false,canPropertyManager:t.canPropertyManager||false,assignedProperties:t.assignedProperties||[]}));}
+  if(p){
+    var profileData={email:t.email.toLowerCase(),name:t.name,unit:t.unit,property:t.property||'',rent:t.rent,paid:t.paid,lease:t.lease||'',phone:t.phone||'',dueDate:t.dueDate||'',landlordUid:S.user.uid,canPost:t.canPost||false,canMaintenance:t.canMaintenance||false,canPropertyManager:t.canPropertyManager||false,assignedProperties:t.assignedProperties||[]};
+    // If worker — also sync their assigned properties with unit lists so they can select on shift log
+    if(t.canMaintenance||t.canPropertyManager){
+      var assignedPropsData=(t.assignedProperties||[]).map(function(pname){
+        var prop=S.properties.find(function(x){return x.name===pname;});
+        return {name:pname,unitsList:prop&&prop.unitsList?prop.unitsList:[]};
+      });
+      profileData.propertiesData=assignedPropsData;
+    }
+    proms.push(fsSet('tenantProfiles/'+p,profileData));
+  }
   return Promise.all(proms);
 }
 function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
@@ -655,6 +666,12 @@ function saveWorkerShift(tp){
   if(!d.hours||isNaN(Number(d.hours))||Number(d.hours)<=0){alert('Please enter valid hours');return;}
   if(!d.date){alert('Please enter a date');return;}
   if(!tp||!tp.landlordUid){alert('Could not find landlord info');return;}
+  // Normalize date to YYYY-MM-DD regardless of device locale
+  var rawDate=d.date||'';
+  var normDate=rawDate;
+  if(rawDate.match(/^\d{2}\/\d{2}\/\d{4}$/)){var dp=rawDate.split('/');normDate=dp[2]+'-'+dp[1]+'-'+dp[0];}
+  else if(rawDate.match(/^\d{2}-\d{2}-\d{4}$/)){var dp=rawDate.split('-');normDate=dp[2]+'-'+dp[1]+'-'+dp[0];}
+  d.date=normDate;
   console.log('[SHIFT] tp.email:',tp.email,'pid:',pid(tp.email),'tp:',JSON.stringify(tp));
   closeSheet();
   var f=fb();
@@ -668,6 +685,8 @@ function saveWorkerShift(tp){
     hours:Number(d.hours),
     date:d.date,
     notes:d.notes||'',
+    property:d.property||'',
+    unit:d.unit||'',
     paid:false,
     createdAt:new Date().toISOString()
   }).catch(function(e){alert('Could not save shift: '+e.message);});
@@ -2098,8 +2117,11 @@ function renderSheet(){
   else if(S.sheet==='addWorkerShift'){
     var tp=S.tenantProfile;
     var d=S.sheetData;
+    var propsData=(tp&&tp.propertiesData)||[];
+    var workerPropSel='<div><label>Property</label><select onchange="S.sheetData.property=this.value;S.sheetData.unit=\'\';renderSheet()"><option value="">— Select property —</option>'+propsData.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>';
+    var workerUnitSel=d.property?(function(){var prop=propsData.find(function(p){return p.name===d.property;});var ul=prop&&prop.unitsList?prop.unitsList:[];if(!ul.length)return '';return '<div><label>Unit</label><select onchange="S.sheetData.unit=this.value"><option value="">— Select unit —</option>'+ul.map(function(u){return '<option value="Unit '+u.number+'"'+(d.unit===('Unit '+u.number)?' selected':'')+'>Unit '+u.number+(u.note?' — '+esc(u.note):'')+'</option>';}).join('')+'</select></div>';})():'';
     title='⏱️ Log My Hours';
-    body='<div class="frow">'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+inp('Notes (optional)','text',d.notes||'','notes','What did you work on?')+'</div>';
+    body='<div class="frow">'+inp('Date','date',d.date||new Date().toISOString().slice(0,10),'date')+inp('Hours Worked','number',d.hours||'','hours','e.g. 4.5')+workerPropSel+workerUnitSel+inp('Notes (optional)','text',d.notes||'','notes','What did you work on?')+'</div>';
     footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="saveWorkerShift(S.tenantProfile)">Submit Hours</button></div>';
   }
 

@@ -2672,6 +2672,7 @@ function _doRender(){
   var totalUtil=S.utilities.reduce(function(a,u){return a+(Number(u.amount)||0);},0);
   var curMPrefix=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
   var totalPayroll=S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(curMPrefix);}).reduce(function(a,s){return a+(Number(s.hours)||0)*(Number(s.hourlyRate)||0);},0);
+  console.log('[PAYROLL] curMPrefix:',curMPrefix,'totalShifts:',S.payrollShifts.length,'paidThisMonth:',S.payrollShifts.filter(function(s){return s.paid&&(s.date||'').startsWith(curMPrefix);}).length,'totalPayroll:',totalPayroll);
   var netIncome=collected-totalExp-totalUtil-totalPayroll;
 
   // Notification badges

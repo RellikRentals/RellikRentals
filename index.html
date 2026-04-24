@@ -3596,6 +3596,7 @@ function _doRender(){
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
                   +'<div onclick="toggleShiftPaid(\''+s.id+'\')" style="width:18px;height:18px;border-radius:5px;border:2px solid '+(s.paid?'#4ade80':'#2e2c3d')+';background:'+(s.paid?'#4ade80':'transparent')+';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-right:10px">'+(s.paid?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
                   +'<div style="flex:1"><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
+                  +(s.property||s.unit?'<div style="font-size:11px;color:#6366f1">'+esc(s.property||'')+(s.unit?' · '+esc(s.unit):'')+'</div>':'')
                   +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
                   +'<div style="text-align:right;display:flex;align-items:center;gap:10px">'
                   +'<div><div style="font-size:13px;font-weight:700;color:'+(s.paid?'#4ade80':'#fbbf24')+'">'+(s.paid?'✓ Paid':'Unpaid')+'</div>'

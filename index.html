@@ -1820,6 +1820,23 @@ function handleFileScan(file){
           }
         });
       }
+      // Fix 2-digit year (e.g. 21/04/21 -> 2026-04-21)
+      if(result.date){
+        var curFullYear=new Date().getFullYear();
+        // Handle YYYY-MM-DD with 2-digit year like 21-04-21
+        result.date=result.date.replace(/^(\d{2})-(\d{2})-(\d{2})$/,function(m,y,mo,d){
+          return curFullYear+'-'+mo+'-'+d;
+        });
+        // Handle 2-digit year in first position of any format
+        result.date=result.date.replace(/^(\d{2})\/(\d{2})\/(\d{2})$/,function(m,d,mo,y){
+          return curFullYear+'-'+mo+'-'+d;
+        });
+        // If year portion is clearly 2-digit (e.g. 2021 scanned as 21)
+        var yearMatch=result.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if(yearMatch&&Number(yearMatch[1])<100){
+          result.date=curFullYear+'-'+yearMatch[2]+'-'+yearMatch[3];
+        }
+      }
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
       // Check for duplicate

@@ -624,16 +624,22 @@ function carryOverLockedUtils(uid){
       if(locked.length===0){fsSet('users/'+uid+'/settings/lastCarryOver',{month:curKey});return;}
       f.getDocs(f.query(f.collection(f.db,'users/'+uid+'/util_'+curKey))).then(function(curSnap){
         var curItems=curSnap.docs.map(function(d){return d.data();});
-        locked.forEach(function(u){
-          var alreadyExists=curItems.some(function(c){
+        var toWrite=locked.filter(function(u){
+          return !curItems.some(function(c){
             return (c.name||'').toLowerCase()===(u.name||'').toLowerCase()&&(c.property||'')===(u.property||'');
           });
-          if(!alreadyExists){
-            var newU=Object.assign({},u,{id:mkid(),date:new Date().toISOString().slice(0,10)});
-            fsSet('users/'+uid+'/util_'+curKey+'/'+newU.id,newU);
-          }
         });
-        fsSet('users/'+uid+'/settings/lastCarryOver',{month:curKey});
+        // Write sequentially — wait for each before firing next
+        var chain=Promise.resolve();
+        toWrite.forEach(function(u){
+          chain=chain.then(function(){
+            var newU=Object.assign({},u,{id:mkid(),date:new Date().toISOString().slice(0,10)});
+            return fsSet('users/'+uid+'/util_'+curKey+'/'+newU.id,newU);
+          });
+        });
+        chain.then(function(){
+          fsSet('users/'+uid+'/settings/lastCarryOver',{month:curKey});
+        });
       });
     });
   }).catch(function(){});

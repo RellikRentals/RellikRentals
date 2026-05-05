@@ -1801,7 +1801,7 @@ function handleFileScan(file){
     // If still too big, compress more
     if(dataUrl.length*0.75>4500000){dataUrl=canvas.toDataURL('image/jpeg',0.65);}
     var base64=dataUrl.split(',')[1];
-    var prompt='Analyze this receipt. Respond ONLY with JSON, no markdown: {"vendor":"name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"} If not a receipt set total to 0.';
+    var prompt='Analyze this receipt image. Respond ONLY with valid JSON, no markdown, no explanation: {"vendor":"store name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"}. IMPORTANT date rules: Always output date as YYYY-MM-DD. If year is 2-digit like 26 expand to 2026. If date is ambiguous use store location — Canadian stores use DD/MM/YYYY, US stores use MM/DD/YYYY. If still uncertain prefer DD/MM/YYYY for Canadian receipts. If not a receipt set total to 0.';
     var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},{type:'text',text:prompt}]}]});
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})

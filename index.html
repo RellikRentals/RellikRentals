@@ -184,7 +184,7 @@ var S = {
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
-  payrollShifts:[], payrollBudgets:{}, myBudget:null, showAllBudgetWorkers:false, vendorAliases:[], inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
+  payrollShifts:[], payrollBudgets:{}, myBudget:null, showAllBudgetWorkers:false, vendorAliases:[], vendorDB:[], vendorDBScanMode:false, inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3, dispTodos:5,
   mgCollapsed:{todos:true,tenants:true,requests:true,expenses:true},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -204,6 +204,7 @@ function subscribeLandlord(uid){
   var f=fb(); var db=f.db; var col=f.collection; var snap=f.onSnapshot; var q=f.query;
   loadDisplayPrefs(uid);
   loadVendorAliases(uid);
+  subscribeVendorDB(uid);
   subscribeInviteKeys(uid);
   subscribePendingUsers(uid);
   loadAdminNotes(uid);
@@ -943,8 +944,58 @@ function updateDedItem(catId,itemId,field,val){
 }
 
 function saveAdminNotes(){if(!S.user)return;fsSet('users/'+S.user.uid+'/settings/adminNotes',{categories:S.adminNoteCategories||[]});}
+function doSaveVendorDB(){
+  var d=S.sheetData;
+  if(!d.displayName){alert('Display name required');return;}
+  var entry={
+    id:d.id||mkid(),
+    gst:d.gst||'',
+    vendor:d.vendor||'',
+    displayName:d.displayName,
+    flipDate:d.flipDate||false,
+    createdAt:new Date().toISOString()
+  };
+  saveVendorEntry(entry);
+  S.tab='settings';
+  closeSheet();
+}
+
 function saveVendorAliases(){
   fsSet('users/'+S.user.uid+'/settings/vendorAliases',{aliases:S.vendorAliases||[]});
+}
+
+function subscribeVendorDB(uid){
+  var f=fb();
+  _unsubs.push(f.onSnapshot(f.query(f.collection(f.db,'users/'+uid+'/vendorDB')),function(s){
+    S.vendorDB=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+    render();
+  }));
+}
+
+function saveVendorEntry(entry){
+  fsSet('users/'+S.user.uid+'/vendorDB/'+entry.id, entry);
+}
+
+function deleteVendorEntry(id){
+  if(confirm('Remove this vendor from the database?'))
+    fsDel('users/'+S.user.uid+'/vendorDB/'+id);
+}
+
+function applyVendorDB(result, rawText){
+  // Check scan result against vendor database before showing review
+  if(!S.vendorDB||!S.vendorDB.length) return result;
+  var gst=(rawText||'').match(/\d{9}RT\d{4}/);
+  var gstNum=gst?gst[0]:'';
+  var match=null;
+  if(gstNum) match=S.vendorDB.find(function(v){return v.gst===gstNum;});
+  if(!match) return result;
+  // Apply corrections
+  if(match.displayName) result.vendor=match.displayName;
+  if(match.flipDate&&result.date&&result.date.match(/^\d{4}-\d{2}-\d{2}$/)){
+    var parts=result.date.split('-');
+    result.date=parts[0]+'-'+parts[2]+'-'+parts[1];
+  }
+  return result;
 }
 
 function generateInviteKey(){
@@ -1811,7 +1862,9 @@ function handleFileScan(file){
       var clean=txt.replace(/[\u0000-\u001F\u007F-\u009F]/g,'').replace(/[^\x20-\x7E\xA0-\uFFFF]/g,'').trim();
       var result;try{result=JSON.parse(clean);}catch(e){S.scanError='Could not read receipt — try a clearer photo.';S.scanning=false;render();return;}
       if(!result||typeof result!=='object'){S.scanError='Could not read receipt — try a clearer photo.';S.scanning=false;render();return;}
-      // Apply vendor alias map
+      // Apply vendor database (GST-based corrections take priority)
+      result=applyVendorDB(result, clean);
+      // Apply vendor alias map (legacy fallback)
       if(S.vendorAliases&&S.vendorAliases.length>0){
         var vendorCheck=(result.vendor||'').toLowerCase();
         var fullCheck=vendorCheck+'|'+clean.toLowerCase();
@@ -1861,6 +1914,22 @@ function handleFileScan(file){
           _pendingScanFile=null;
           S._pendingDupReceipt=null;
         }
+        return;
+      }
+      // If scanning to vendor database, show vendor entry sheet instead of receipt confirm
+      if(S.vendorDBScanMode){
+        var gstMatch=clean.match(/\d{9}RT\d{4}/);
+        var gstNum=gstMatch?gstMatch[0]:'';
+        S.vendorDBScanMode=false;
+        S.scanning=false;
+        openSheet('addVendorDB',{
+          id:gstNum||mkid(),
+          gst:gstNum,
+          vendor:result.vendor||'',
+          displayName:result.vendor||'',
+          flipDate:false,
+          rawDate:result.date||''
+        });
         return;
       }
       openSheet('confirmScan',Object.assign({},r));
@@ -2164,6 +2233,23 @@ function renderSheet(){
 
 
 
+  else if(S.sheet==='addVendorDB'){
+    var d=S.sheetData;
+    title='📋 Add to Vendor Database';
+    var vdbBody='<div class="frow">'
+      +'<div><label>Scanned Vendor Name</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.vendor||'Unknown')+'</div></div>'
+      +'<div><label>GST Number</label><div style="font-size:13px;color:'+(d.gst?'#4ade80':'#f87171')+';padding:8px 0;font-weight:700">'+(d.gst||'Not found on receipt')+'</div></div>'
+      +'<div><label>Scanned Date</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.rawDate||'—')+'</div></div>'
+      +inp('Display Name','text',d.displayName||'','displayName','e.g. RONA New Liskeard')
+      +'<div><label>Date Format Correction</label>'
+      +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer" onclick="S.sheetData.flipDate=!S.sheetData.flipDate;renderSheet()">'
+      +'<div style="width:20px;height:20px;border-radius:5px;border:2px solid '+(d.flipDate?'#6366f1':'#2e2c3d')+';background:'+(d.flipDate?'#6366f1':'transparent')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +(d.flipDate?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')
+      +'</div><span style="font-size:13px;color:#f0eef8">Scanner reads MM/DD — flip to DD/MM</span></div></div>'
+      +'</div>';
+    body=vdbBody;
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="S.tab=\'settings\';closeSheet()">Cancel</button><button class="btn btn-primary" onclick="doSaveVendorDB()">Save to Database</button></div>';
+  }
   else if(S.sheet==='confirmScan'){
     var d=S.sheetData;
     title='🧾 Confirm Receipt';
@@ -3457,7 +3543,7 @@ function _doRender(){
       +'<div><div style="font-size:14px;font-weight:700">📁 Google Drive</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">Auto-save named receipts to Drive</div></div>'
       +'<div style="font-size:12px;font-weight:700;color:#4ade80">✓ Active</div>'
       +'</div>'
-      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">VENDOR ALIASES</div>'      +'<div class="card" style="padding:14px 16px">'      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:10px">Auto-correct vendor names and dates after scanning.</div>'      +((S.vendorAliases||[]).length>0?(S.vendorAliases||[]).map(function(a,i){return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #2e2c3d"><div style="flex:1"><div style="font-size:12px;color:#7c7a90">If scan contains:</div><div style="font-size:13px;font-weight:700;color:#f0eef8">'+esc(a.trigger)+'</div><div style="font-size:12px;color:#6366f1;margin-top:2px">→ '+esc(a.name)+(a.flipDate?' · flip date':'')+'</div></div><button onclick="S.vendorAliases=S.vendorAliases.filter(function(_,j){return j!=='+i+';});saveVendorAliases();render()" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171;flex-shrink:0">'+ICO.trash+'</button></div>';}).join(''):'')      +'<div style="margin-top:10px">'      +'<input id="aliasT" placeholder="Trigger (e.g. 96 King Street)" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none;margin-bottom:6px;box-sizing:border-box"/>'      +'<input id="aliasN" placeholder="Corrected name (e.g. North Cobalt Flea Market)" style="width:100%;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none;margin-bottom:6px;box-sizing:border-box"/>'      +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;cursor:pointer" onclick="S.aliasFlipDate=!S.aliasFlipDate;render()"><div style="width:20px;height:20px;border-radius:5px;border:2px solid '+(S.aliasFlipDate?'#6366f1':'#2e2c3d')+';background:'+(S.aliasFlipDate?'#6366f1':'transparent')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(S.aliasFlipDate?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':'')+' </div><span style="font-size:13px;color:#f0eef8">Flip DD/MM → MM/DD date</span></div>'      +'<button onclick="var t=document.getElementById(\'aliasT\').value.trim();var n=document.getElementById(\'aliasN\').value.trim();var f=S.aliasFlipDate;if(!t||!n){alert(\'Both fields required\');return;}if(!S.vendorAliases)S.vendorAliases=[];S.vendorAliases.push({trigger:t,name:n,flipDate:f});saveVendorAliases();document.getElementById(\'aliasT\').value=\'\';document.getElementById(\'aliasN\').value=\'\';S.aliasFlipDate=false;render();" style="width:100%;background:#6366f122;border:1px solid #6366f144;border-radius:10px;padding:8px;color:#6366f1;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add Alias</button>'      +'</div>'      +'</div>'      +'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
+      +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">VENDOR DATABASE</div>'      +'<div class="card" style="padding:14px 16px">'      +'<div style="font-size:13px;color:#7c7a90;margin-bottom:10px">Scan a receipt to add a vendor. GST number is used as the unique key.</div>'      +(S.vendorDB.length>0?S.vendorDB.map(function(v){return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d;display:flex;align-items:flex-start;gap:8px"><div style="flex:1"><div style="font-size:13px;font-weight:700;color:#f0eef8">'+esc(v.displayName||v.vendor||'Unknown')+'</div><div style="font-size:11px;color:#7c7a90;margin-top:2px">GST: '+esc(v.gst||'—')+'</div>'+(v.flipDate?'<div style="font-size:11px;color:#6366f1;margin-top:2px">Date: flip MM/DD</div>':'')+'</div><button onclick="deleteVendorEntry(\''+v.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:6px 10px;cursor:pointer;color:#f87171;flex-shrink:0">'+ICO.trash+'</button></div>';}).join(''):'<div style="font-size:13px;color:#4a4860;font-style:italic;padding:8px 0">No vendors saved yet.</div>')      +'<button onclick="S.vendorDBScanMode=true;render()" style="width:100%;background:#6366f122;border:1px solid #6366f144;border-radius:10px;padding:10px;color:#6366f1;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif;margin-top:10px">📷 Scan Receipt to Add Vendor</button>'      +'</div>'+'<div style="text-align:center;padding:24px 0 8px;font-size:11px;color:#4a4860">Made with ☕ and antimatter theory</div>'
       +'</div>';
   }
 

@@ -3735,7 +3735,7 @@ function _doRender(){
     }
   }
 
-  root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div>'+nav+'</div>';
+root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div><input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'"/></div>'+nav+'</div>';
   var newScroll=document.querySelector('.scroll');
   if(newScroll&&scrollTop)newScroll.scrollTop=scrollTop;
   renderSheet();

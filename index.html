@@ -1898,8 +1898,8 @@ function handleFileScan(file){
       }
       var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
-      // Check for duplicate
-      var dupCheck=S.receipts.find(function(x){
+      // Check for duplicate — skip if scanning to vendor database
+      var dupCheck=!S.vendorDBScanMode&&S.receipts.find(function(x){
         return x.vendor&&r.vendor&&x.vendor.toLowerCase()===r.vendor.toLowerCase()
           && Math.abs(Number(x.total)-Number(r.total))<0.01
           && x.date===r.date;

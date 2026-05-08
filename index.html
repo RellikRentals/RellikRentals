@@ -1930,7 +1930,8 @@ function handleFileScan(file){
           vendor:result.vendor||'',
           displayName:result.vendor||'',
           flipDate:false,
-          rawDate:result.date||''
+          rawDate:result.date||'',
+          rawText:clean.slice(0,300)
         });
         return;
       }
@@ -2240,7 +2241,8 @@ function renderSheet(){
     title='📋 Add to Vendor Database';
     var vdbBody='<div class="frow">'
       +'<div><label>Scanned Vendor Name</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.vendor||'Unknown')+'</div></div>'
-      +'<div><label>GST Number</label><div style="font-size:13px;color:'+(d.gst?'#4ade80':'#f87171')+';padding:8px 0;font-weight:700">'+(d.gst||'Not found on receipt')+'</div></div>'
+      +'<div><label>GST Number</label><div style="font-size:13px;color:'+(d.gst?'#4ade80':'#f97316')+';padding:8px 0;font-weight:700">'+(d.gst||'Not found on receipt')+'</div></div>'
+      +(d.rawText?'<div><label>Raw Scan Text (debug)</label><div style="font-size:10px;color:#7c7a90;padding:6px 8px;background:#1a1826;border-radius:8px;word-break:break-all;max-height:80px;overflow-y:auto">'+esc(d.rawText)+'</div></div>':'')
       +'<div><label>Scanned Date</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.rawDate||'—')+'</div></div>'
       +inp('Display Name','text',d.displayName||'','displayName','e.g. RONA New Liskeard')
       +'<div><label>Date Format Correction</label>'

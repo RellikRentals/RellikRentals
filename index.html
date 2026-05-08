@@ -151,7 +151,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/[<]/g,'&lt;'
 function pill(text,color){return '<span class="pill" style="background:'+color+'22;color:'+color+'">'+text+'</span>';}
 function authorAvatar(p){
   var initials=(p.authorName||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2)||'?';
-  var color=p.landlordUid?'#f59e0b':p.isPropertyManager?'#8b5cf6':p.isMaintenance?'#f97316':'#6366f1';
+  var color=p.landlordUid?'#f59e0b':p.isPropertyManager?'#8b5cf6':p.isMaintenance?'#f87171':'#6366f1';
   return '<div style="width:34px;height:34px;border-radius:50%;background:'+color+'33;border:2px solid '+color+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:'+color+';flex-shrink:0">'+initials+'</div>';
 }
 function daysUntil(d){return Math.ceil((new Date(d)-new Date())/86400000);}
@@ -1853,7 +1853,7 @@ function handleFileScan(file){
     // If still too big, compress more
     if(dataUrl.length*0.75>4500000){dataUrl=canvas.toDataURL('image/jpeg',0.65);}
     var base64=dataUrl.split(',')[1];
-    var prompt='Analyze this receipt image. Respond ONLY with valid JSON, no markdown, no explanation: {"vendor":"store name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low"}. IMPORTANT date rules: Always output date as YYYY-MM-DD. If year is 2-digit like 26 expand to 2026. If date is ambiguous use store location — Canadian stores use DD/MM/YYYY, US stores use MM/DD/YYYY. If still uncertain prefer DD/MM/YYYY for Canadian receipts. If not a receipt set total to 0.';
+    var prompt='Analyze this receipt image. Respond ONLY with valid JSON, no markdown, no explanation: {"vendor":"store name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low","gst":"business registration number from receipt (GST/HST number, digits only) or empty string if not found"}. IMPORTANT date rules: Always output date as YYYY-MM-DD. If year is 2-digit like 26 expand to 2026. If date is ambiguous use store location — Canadian stores use DD/MM/YYYY, US stores use MM/DD/YYYY. If still uncertain prefer DD/MM/YYYY for Canadian receipts. If not a receipt set total to 0.';
     var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},{type:'text',text:prompt}]}]});
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})
@@ -1919,9 +1919,9 @@ function handleFileScan(file){
       }
       // If scanning to vendor database, show vendor entry sheet instead of receipt confirm
       if(S.vendorDBScanMode){
-        var gstMatch=clean.match(/\d{9}RT\d{4}/);
-        if(!gstMatch){var hstM=clean.match(/H\.?S\.?T#?\s*(\d{9})/);if(hstM)gstMatch=[hstM[1]];}
-        var gstNum=gstMatch?gstMatch[0]:'';
+        var gstNum=(result.gst||'').replace(/\D/g,'').slice(0,9);
+        if(!gstNum){var gstM=clean.match(/\d{9}RT\d{4}/);if(!gstM){var hstM=clean.match(/H\.?S\.?T#?\s*(\d{9})/);if(hstM)gstM=[hstM[1]];}gstNum=gstM?gstM[0]:'';}  
+        
         S.vendorDBScanMode=false;
         S.scanning=false;
         openSheet('addVendorDB',{

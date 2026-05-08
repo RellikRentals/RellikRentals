@@ -985,6 +985,7 @@ function applyVendorDB(result, rawText){
   // Check scan result against vendor database before showing review
   if(!S.vendorDB||!S.vendorDB.length) return result;
   var gst=(rawText||'').match(/\d{9}RT\d{4}/);
+  if(!gst){var hst=(rawText||'').match(/H\.?S\.?T#?\s*(\d{9})/);if(hst)gst=[hst[1]];}
   var gstNum=gst?gst[0]:'';
   var match=null;
   if(gstNum) match=S.vendorDB.find(function(v){return v.gst===gstNum;});
@@ -1919,6 +1920,7 @@ function handleFileScan(file){
       // If scanning to vendor database, show vendor entry sheet instead of receipt confirm
       if(S.vendorDBScanMode){
         var gstMatch=clean.match(/\d{9}RT\d{4}/);
+        if(!gstMatch){var hstM=clean.match(/H\.?S\.?T#?\s*(\d{9})/);if(hstM)gstMatch=[hstM[1]];}
         var gstNum=gstMatch?gstMatch[0]:'';
         S.vendorDBScanMode=false;
         S.scanning=false;

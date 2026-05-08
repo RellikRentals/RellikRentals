@@ -1836,7 +1836,7 @@ function doGeneratePDFs(){
 
 function handleFileScan(file){
   if(!file||!file.type.startsWith('image/')){S.scanError='Please upload an image.';render();return;}
-  S.scanError='';S.scanning=true;S.quickMode=false;S.tab='receipts';render();
+  S.scanError='';S.scanning=true;S.quickMode=false;if(!S.vendorDBScanMode)S.tab='receipts';render();
   var previewUrl=URL.createObjectURL(file);
   // Compress image to stay under 5MB API limit
   var img=new Image();

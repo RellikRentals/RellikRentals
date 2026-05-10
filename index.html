@@ -984,11 +984,15 @@ function deleteVendorEntry(id){
 function applyVendorDB(result, rawText){
   // Check scan result against vendor database before showing review
   if(!S.vendorDB||!S.vendorDB.length) return result;
-  var gst=(rawText||'').match(/\d{9}RT\d{4}/);
-  if(!gst){var hst=(rawText||'').match(/H\.?S\.?T#?\s*(\d{9})/);if(hst)gst=[hst[1]];}
-  var gstNum=gst?gst[0]:'';
+  // Use GST from AI response first, fall back to regex on rawText
+  var gstNum=(result.gst||'').replace(/\D/g,'').slice(0,9);
+  if(!gstNum){
+    var gst=(rawText||'').match(/\d{9}RT\d{4}/);
+    if(!gst){var hst=(rawText||'').match(/H\.?S\.?T#?\s*(\d{9})/);if(hst)gst=[hst[1]];}
+    gstNum=gst?gst[0]:'';
+  }
   var match=null;
-  if(gstNum) match=S.vendorDB.find(function(v){return v.gst===gstNum;});
+  if(gstNum) match=S.vendorDB.find(function(v){return (v.gst||'').replace(/\D/g,'')===gstNum.replace(/\D/g,'');});
   if(!match) return result;
   // Apply corrections
   if(match.displayName) result.vendor=match.displayName;

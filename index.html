@@ -952,6 +952,7 @@ function doSaveVendorDB(){
     gst:d.gst||'',
     vendor:d.vendor||'',
     displayName:d.displayName,
+    address:d.address||'',
     flipDate:d.flipDate||false,
     createdAt:new Date().toISOString()
   };
@@ -982,7 +983,6 @@ function deleteVendorEntry(id){
 }
 
 function applyVendorDB(result, rawText){
-  // Check scan result against vendor database before showing review
   if(!S.vendorDB||!S.vendorDB.length) return result;
   // Use GST from AI response first, fall back to regex on rawText
   var gstNum=(result.gst||'').replace(/\D/g,'').slice(0,9);
@@ -992,9 +992,23 @@ function applyVendorDB(result, rawText){
     gstNum=gst?gst[0]:'';
   }
   var match=null;
+  // 1. Match by GST number
   if(gstNum) match=S.vendorDB.find(function(v){return (v.gst||'').replace(/\D/g,'')===gstNum.replace(/\D/g,'');});
+  // 2. Fallback — match by address
+  if(!match){
+    var vendorText=(result.vendor||'').toLowerCase()+' '+(rawText||'').toLowerCase();
+    match=S.vendorDB.find(function(v){
+      return v.address&&v.address.length>3&&vendorText.indexOf(v.address.toLowerCase())!==-1;
+    });
+  }
+  // 3. Fallback — match by vendor name
+  if(!match){
+    var vName=(result.vendor||'').toLowerCase();
+    match=S.vendorDB.find(function(v){
+      return v.vendor&&v.vendor.length>3&&vName.indexOf(v.vendor.toLowerCase())!==-1;
+    });
+  }
   if(!match) return result;
-  // Apply corrections
   if(match.displayName) result.vendor=match.displayName;
   if(match.flipDate&&result.date&&result.date.match(/^\d{4}-\d{2}-\d{2}$/)){
     var parts=result.date.split('-');
@@ -1935,7 +1949,6 @@ function handleFileScan(file){
           displayName:result.vendor||'',
           flipDate:false,
           rawDate:result.date||'',
-          rawText:clean.slice(0,300)
         });
         return;
       }
@@ -2246,9 +2259,9 @@ function renderSheet(){
     var vdbBody='<div class="frow">'
       +'<div><label>Scanned Vendor Name</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.vendor||'Unknown')+'</div></div>'
       +'<div><label>GST Number</label><div style="font-size:13px;color:'+(d.gst?'#4ade80':'#f97316')+';padding:8px 0;font-weight:700">'+(d.gst||'Not found on receipt')+'</div></div>'
-      +(d.rawText?'<div><label>Raw Scan Text (debug)</label><div style="font-size:10px;color:#7c7a90;padding:6px 8px;background:#1a1826;border-radius:8px;word-break:break-all;max-height:80px;overflow-y:auto">'+esc(d.rawText)+'</div></div>':'')
       +'<div><label>Scanned Date</label><div style="font-size:13px;color:#7c7a90;padding:8px 0">'+esc(d.rawDate||'—')+'</div></div>'
       +inp('Display Name','text',d.displayName||'','displayName','e.g. RONA New Liskeard')
+      +inp('Address (optional, for vendors without HST)','text',d.address||'','address','e.g. 96 King Street')
       +'<div><label>Date Format Correction</label>'
       +'<div style="display:flex;gap:8px;align-items:center;margin-top:8px;cursor:pointer" onclick="S.sheetData.flipDate=!S.sheetData.flipDate;renderSheet()">'
       +'<div style="width:20px;height:20px;border-radius:5px;border:2px solid '+(d.flipDate?'#6366f1':'#2e2c3d')+';background:'+(d.flipDate?'#6366f1':'transparent')+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'

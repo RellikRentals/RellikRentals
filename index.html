@@ -2004,6 +2004,8 @@ function inp(lbl,type,val,key,ph){
 }
 
 function renderSheet(){
+  var sheetEl=document.querySelector('.sheet-overlay');
+  var scrollTop=sheetEl?sheetEl.querySelector('.sheet-body')?sheetEl.querySelector('.sheet-body').scrollTop:0:0;
   document.querySelectorAll('.sheet-overlay').forEach(function(e){e.remove();});
   if(!S.sheet)return;
   var el=document.createElement('div');el.className='sheet-overlay';
@@ -2369,6 +2371,8 @@ function renderSheet(){
 
   el.innerHTML='<div class="sheet-bg" onclick="closeSheet()"></div><div class="sheet-box"><div class="sheet-handle"></div>'+(title?'<div style="font-size:18px;font-weight:800;margin-bottom:20px">'+title+'</div>':'')+body+footer+'</div>';
   document.body.appendChild(el);
+  var newBox=el.querySelector('.sheet-box');
+  if(newBox&&scrollTop) newBox.scrollTop=scrollTop;
 }
 
 function doSheetAddTenant(){if(!S.sheetData.name||!S.sheetData.unit){alert('Name and unit required');return;}var d=S.sheetData;var pendingId=d._pendingId||null;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});delete t._pendingId;saveTenant(t);if(pendingId)fsDel('users/'+S.user.uid+'/pendingUsers/'+pendingId);}

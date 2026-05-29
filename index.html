@@ -184,7 +184,7 @@ var S = {
   collapsed:{status:false,lease:false,receipts:false,requests:false,bulletin:false,maintTodos:true}, tenantBulletinPage:false, tenantMaintenancePage:false, tenantMaintenanceFull:false, propertyManagerPage:false, adminNotesPage:false, todoInput:'', shoppingInput:'', shoppingQty:'', showShopping:false, showAllTenants:false, mileageFilter:null, tenantPropertyFilter:null, mgPropertyFilter:'all', receiptTypeFilter:'all', showAllUtils:false, showAllReceipts:false, showAllMileage:false, showAllTodos:false, quickMode:true, netWorthPropValue:'', netWorthTFSA:'', netWorthRRSP:'', netWorthOther:'', netWorthCrypto:'', todoPriority:'low', showPriorityPicker:false, deductionsCollapsed:true, maintenanceLogPage:false, dedCategories:[], dedCatExpanded:{}, dedCatCollapsed:{}, adminNoteCategories:[], adminNoteCatCollapsed:{},
   tenants:[], receipts:[], utilities:[], properties:[], maintenanceRequests:[], myRequests:[], ytdRentReceipts:[], ytdUtilities:[], bulletinPosts:[], todoItems:[], shoppingItems:[], mileageLog:[], managerTenants:[], managerReceipts:[], managerProperties:[], managerUtilities:[], capitalAssets:[], mortgages:[], maintenanceLog:[],
   tab:'home', selectedTenant:null, tenantSort:'added', selectedProperty:'all', showAllLeases:false, propertiesSubTab:'properties', payrollWorker:null,
-  payrollShifts:[], payrollBudgets:{}, myBudget:null, workerMileage:[], showAllBudgetWorkers:false, vendorAliases:[], vendorDB:[], vendorDBScanMode:false, scanMode:'camera', inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
+  payrollShifts:[], payrollBudgets:{}, myBudget:null, workerMileage:[], showAllWorkerShifts:false, showAllBudgetWorkers:false, vendorAliases:[], vendorDB:[], vendorDBScanMode:false, scanMode:'camera', inviteKeys:[], pendingUsers:[], showPendingPage:false, newKeyNote:'',
   dispReceipts:3, dispMileage:5, dispUtils:2, dispLeases:3, dispTenants:3, dispTodos:5,
   mgCollapsed:{todos:true,tenants:true,requests:true,expenses:true},
   viewMonth:new Date().getMonth(), viewYear:new Date().getFullYear(),
@@ -2691,7 +2691,7 @@ function _doRender(){
             +'</div>'
             +(myShifts.length===0
               ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
-              :myShifts.map(function(s){
+              :( S.showAllWorkerShifts?myShifts:myShifts.slice(0,4)).map(function(s){
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
                   +'<div><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
                   +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
@@ -2801,7 +2801,7 @@ function _doRender(){
             +'</div>'
             +(myShifts.length===0
               ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No shifts logged yet</div>'
-              :myShifts.map(function(s){
+              :( S.showAllWorkerShifts?myShifts:myShifts.slice(0,4)).map(function(s){
                 return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2e2c3d">'
                   +'<div><div style="font-size:13px;font-weight:700">'+s.date+'</div>'
                   +(s.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(s.notes)+'</div>':'')+'</div>'
@@ -2809,6 +2809,7 @@ function _doRender(){
                   +'<div style="font-size:12px;color:#7c7a90">'+s.hours+'h</div></div>'
                   +'</div>';
               }).join(''))
+            +(myShifts.length>4?'<div style="text-align:center;padding:8px 0"><button onclick="S.showAllWorkerShifts=!S.showAllWorkerShifts;render()" style="background:#6366f122;border:none;border-radius:10px;padding:5px 14px;color:#6366f1;font-weight:700;font-size:11px;cursor:pointer;font-family:Nunito,sans-serif">'+(S.showAllWorkerShifts?'Show Less':'Show All '+myShifts.length+' Shifts')+'</button></div>':'')
             +'</div>';
         })()
         // Worker Mileage
@@ -3642,7 +3643,7 @@ function _doRender(){
       // About section
       +'<div style="font-size:11px;font-weight:800;color:#7c7a90;letter-spacing:1px;margin:20px 0 8px;padding:0 4px">ABOUT</div>'
       +'<div class="card" style="padding:0">'
-      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v5.0.0</span></div>'
+      +'<div class="card-row" style="padding:14px 16px"><span style="font-size:14px;color:#7c7a90">Version</span><span style="font-size:13px;color:#6366f1;font-weight:700">v5.1.0</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Domain</span><span style="font-size:13px;color:#4ade80;font-weight:700">rellik.ca</span></div>'
       +'<div class="card-row" style="padding:14px 16px;border-top:1px solid #2e2c3d"><span style="font-size:14px;color:#7c7a90">Built by</span><span style="font-size:13px;color:#7c7a90;font-weight:700">Rellik & Claude Devon</span></div>'
       +'</div>'

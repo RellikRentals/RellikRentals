@@ -3804,6 +3804,7 @@ function _doRender(){
                 +'</div>'
                 :'')
               +'<button onclick="if(confirm(\'Reset '+esc(w.name)+'\\\'s budget to $0?\')){saveBudgetConfig(\''+wid+'\',Object.assign({},S.payrollBudgets[\''+wid+'\']||{},{balance:0}));}" style="background:#f8717122;border:1px solid #f8717133;border-radius:8px;padding:5px 12px;color:#f87171;font-size:11px;font-weight:700;cursor:pointer;font-family:Nunito,sans-serif">Reset Budget to $0</button>'
+              +'<div style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="number" id="addFunds_'+wid+'" placeholder="Add to budget" style="flex:1;background:#22202f;border:1px solid #2e2c3d;border-radius:10px;padding:8px 10px;color:#f0eef8;font-size:13px;font-family:Nunito,sans-serif;outline:none"/><button onclick="var el=document.getElementById(\'addFunds_'+wid+'\');var amt=Number(el.value);if(!amt||amt<=0){alert(\'Enter a valid amount\');return;}var cfg=S.payrollBudgets[\''+ wid +'\']||{balance:0};saveBudgetConfig(\''+ wid +'\',Object.assign({},cfg,{balance:(Number(cfg.balance)||0)+amt}));el.value=\'\';" style="background:#4ade8022;border:1px solid #4ade8044;border-radius:10px;padding:8px 14px;color:#4ade80;font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">+ Add</button></div>'
               +'</div>'
               // Shift history
               +'<div>'

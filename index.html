@@ -2701,28 +2701,6 @@ function _doRender(){
               }).join(''))
             +'</div>';
         })()
-        // Worker Mileage
-        +(function(){
-          var wm=S.workerMileage||[];
-          var curY=new Date().getFullYear();
-          var ytdKm=wm.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
-          return '<div class="card" style="margin-bottom:8px">'
-            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
-            +'<div style="font-size:13px;font-weight:700">🚗 My Mileage'+(ytdKm>0?' <span style="font-size:11px;color:#6366f1;font-weight:700">'+ytdKm.toFixed(1)+'km YTD</span>':'')+'</div>'
-            +'<button onclick="openSheet(\'addWorkerMileage\',{date:new Date().toISOString().slice(0,10),unit:\'km\'})" style="background:#6366f122;border:1px solid #6366f144;border-radius:10px;padding:5px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Log Drive</button>'
-            +'</div>'
-            +(wm.length===0
-              ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No drives logged yet</div>'
-              :wm.slice(0,5).map(function(m){
-                return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d;border-left:3px solid #4ade80;padding-left:8px;display:flex;justify-content:space-between;align-items:center">'
-                  +'<div><div style="font-size:13px;font-weight:700">'+m.date+'</div>'
-                  +(m.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(m.notes)+'</div>':'')+'</div>'
-                  +'<div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span>'
-                  +'<button onclick="delWorkerMileage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:6px;cursor:pointer;color:#f87171;padding:3px 6px">'+ICO.trash+'</button>'
-                  +'</div></div>';
-              }).join(''))
-            +'</div>';
-        })()
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+pmh+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
       return;
@@ -2830,6 +2808,28 @@ function _doRender(){
                   +'<div style="text-align:right"><div style="font-size:13px;font-weight:700;color:'+(s.paid?'#4ade80':'#fbbf24')+'">'+(s.paid?'✓ Paid':'Unpaid')+'</div>'
                   +'<div style="font-size:12px;color:#7c7a90">'+s.hours+'h</div></div>'
                   +'</div>';
+              }).join(''))
+            +'</div>';
+        })()
+        // Worker Mileage
+        +(function(){
+          var wm=S.workerMileage||[];
+          var curY=new Date().getFullYear();
+          var ytdKm=wm.filter(function(m){return (m.date||'').startsWith(String(curY));}).reduce(function(a,m){return a+(Number(m.distance)||0);},0);
+          return '<div class="card" style="margin-bottom:8px">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+            +'<div style="font-size:13px;font-weight:700">🚗 My Mileage'+(ytdKm>0?' <span style="font-size:11px;color:#6366f1;font-weight:700">'+ytdKm.toFixed(1)+'km YTD</span>':'')+'</div>'
+            +'<button onclick="openSheet(\'addWorkerMileage\',{date:new Date().toISOString().slice(0,10),unit:\'km\'})" style="background:#6366f122;border:1px solid #6366f144;border-radius:10px;padding:5px 12px;color:#6366f1;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Log Drive</button>'
+            +'</div>'
+            +(wm.length===0
+              ?'<div style="font-size:13px;color:#7c7a90;text-align:center;padding:8px 0">No drives logged yet</div>'
+              :wm.slice(0,5).map(function(m){
+                return '<div style="padding:8px 0;border-bottom:1px solid #2e2c3d;border-left:3px solid #4ade80;padding-left:8px;display:flex;justify-content:space-between;align-items:center">'
+                  +'<div><div style="font-size:13px;font-weight:700">'+m.date+'</div>'
+                  +(m.notes?'<div style="font-size:11px;color:#7c7a90">'+esc(m.notes)+'</div>':'')+'</div>'
+                  +'<div style="display:flex;align-items:center;gap:6px"><span style="font-size:13px;font-weight:800;color:#6366f1">'+m.distance+' '+m.unit+'</span>'
+                  +'<button onclick="delWorkerMileage(\''+m.id+'\')" style="background:#f8717122;border:1px solid #f8717133;border-radius:6px;cursor:pointer;color:#f87171;padding:3px 6px">'+ICO.trash+'</button>'
+                  +'</div></div>';
               }).join(''))
             +'</div>';
         })()

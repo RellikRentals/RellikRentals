@@ -2522,6 +2522,7 @@ function _doRender(){
   var scrollTop=scrollEl?scrollEl.scrollTop:0;
   var root=document.getElementById('root');
   if(!root)return;
+  console.log('[RENDER] tab:',S.tab,'quickMode:',S.quickMode,'isTenant:',S.isTenant,'isPartner:',S.isPartner);
 
   // 6th of month reminder
   if(!S.isTenant&&S.user){

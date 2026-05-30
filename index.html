@@ -2929,6 +2929,7 @@ function _doRender(){
   var c='';
 
   if(S.tab==='home'){
+    try{
     var mn=S.viewMonth; var yr=S.viewYear;
     var isCurrentMonth = mn===new Date().getMonth() && yr===new Date().getFullYear();
     // Filter tenants by selected property
@@ -3149,6 +3150,7 @@ function _doRender(){
       +[['Add Tenant','openSheet(\'addTenant\',{})',ICO.plus],['Gen Receipts','openSheet(\'receiptGen\',{})',ICO.receipt],['Documents','S.tab=\'properties\';S.propertiesSubTab=\'docs\';render()','<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],['Upload Expense','S.tab=\'receipts\';render()',ICO.upload]]
       .map(function(a){return '<button onclick="'+a[1]+'" style="background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:14px 12px;cursor:pointer;text-align:left;color:#f0eef8;font-family:Nunito,sans-serif"><div style="margin-bottom:8px;color:#6366f1">'+a[2]+'</div><div style="font-size:13px;font-weight:700">'+a[0]+'</div></button>';}).join('')
       +'</div></div></div>';
+    }catch(e){console.error('[HOME TAB ERROR]',e);}
   }
 
   else if(S.tab==='tenants'){

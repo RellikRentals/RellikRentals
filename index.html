@@ -2984,7 +2984,7 @@ function _doRender(){
         +'</div>'
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll" id="main-scroll">'+c+'</div>'+nav+'</div>';
-      return;
+      console.log("[HOME] early return at line 2987");return;
     }
     if(S.isPartner && !S.adminNotesPage && !S._partnerOnboarded){
       // First login onboarding screen
@@ -2995,7 +2995,7 @@ function _doRender(){
         +'<button onclick="S._partnerOnboarded=true;render()" style="width:100%;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:20px;padding:18px;color:#fff;font-weight:800;font-size:16px;cursor:pointer;font-family:Nunito,sans-serif">Get Started</button>'
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+oc+'</div></div>';
-      return;
+      console.log("[HOME] early return at line 2998");return;
     }
     if(S.isPartner && !S.adminNotesPage && S.partnerQuickMode){
       // Partner quick home screen
@@ -3017,10 +3017,11 @@ function _doRender(){
         +'</div>'
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
-      return;
+      console.log("[HOME] early return at line 3020");return;
     }
 
     if(!S.isTenant && S.adminNotesPage){
+      console.log('[HOME] hit adminNotesPage block');
       var anCats=S.adminNoteCategories||[];
       var anPriorityColors={low:'#f0eef8',medium:'#fbbf24',high:'#f87171'};
       var anh='<div class="top-bar"><button onclick="S.adminNotesPage=false;render()" style="background:none;border:none;cursor:pointer;padding:4px;color:#f0eef8">'+ICO.back+'</button><div class="page-title" style="flex:1;margin-left:8px">📋 Admin Notes</div><button onclick="addAdminNoteCategory()" style="background:#8b5cf622;border:1px solid #8b5cf644;border-radius:10px;padding:6px 12px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">+ Category</button></div>'
@@ -3058,7 +3059,7 @@ function _doRender(){
           }).join(''))
         +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+anh+'<div style="text-align:center;padding:16px 0 8px"><div style="font-size:10px;color:#4a4860;font-weight:700;letter-spacing:1px">DEVELOPED BY RELLIKRENTALS</div></div></div></div>';
-      return;
+      console.log("[HOME] early return at line 3062");return;
     }
 
     if(!S.isTenant && S.quickMode){
@@ -3092,7 +3093,7 @@ function _doRender(){
         +'<div style="padding:0 20px 16px;display:flex;gap:8px">'
         +'<button onclick="S.adminNotesPage=true;render()" style="flex:1;background:#8b5cf611;border:1px solid #8b5cf633;border-radius:12px;padding:8px;color:#8b5cf6;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">📋 Admin Notes</button>'        +'<button onclick="doSignOut()" style="background:#f8717111;border:1px solid #f8717133;border-radius:12px;padding:8px 14px;color:#f87171;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif">Sign Out</button>'        +'</div>'        +'</div>';
       root.innerHTML='<div id="app"><div class="scroll">'+c+'<input type="file" id="fi" accept="image/*" capture="environment" style="display:none" onchange="if(this.files[0])handleFileScan(this.files[0]);this.value=\'\'" /></div></div>';
-      return;
+      console.log("[HOME] early return at line 3096");return;
     }
     c='<div class="top-bar"><div><div style="font-size:13px;color:#7c7a90;font-weight:600">Good day 👋</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.5px">RellikRentals</div></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:10px;color:#6366f1;font-weight:700;cursor:pointer;background:#6366f122;padding:3px 8px;border-radius:99px" onclick="openSheet(\'changelog\',{})">v5.1.0</span><button onclick="openSheet(\'monthPicker\',{month:S.viewMonth,year:S.viewYear})" style="background:'+(isCurrentMonth?'#6366f122':'#fbbf2422')+';border:none;border-radius:10px;padding:8px 12px;cursor:pointer;font-family:Nunito,sans-serif;min-height:36px;min-width:70px"><span style="font-size:11px;color:'+(isCurrentMonth?'#6366f1':'#fbbf24')+';font-weight:700">'+MONTHS[mn].slice(0,3)+' '+yr+(isCurrentMonth?'':' 📅')+'</span></button><button onclick="doSignOut()" style="background:none;border:none;cursor:pointer;color:#7c7a90;padding:4px;min-height:36px;min-width:36px">'+ICO.logout+'</button></div></div>'
       +propDropdown

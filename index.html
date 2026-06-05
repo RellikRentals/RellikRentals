@@ -1112,12 +1112,7 @@ function assignPendingRole(pendingId,role){
       render();
     }
   }else if(role==='manager'||role==='maintenance'){
-    if(confirm('Assign '+u.email+' as '+(role==='manager'?'Property Manager':'Maintenance Worker')+'?')){
-      var data={uid:u.uid,landlordUid:LANDLORD_UID,email:u.email,name:u.name||u.email,canPropertyManager:role==='manager',canMaintenance:role==='maintenance'||role==='manager'};
-      f.setDoc(f.doc(f.db,'managerIndex/'+u.uid),data,{merge:true}).then(function(){
-        fsDel('users/'+LANDLORD_UID+'/pendingUsers/'+pendingId);
-      });
-    }
+    openSheet('addTenant',{name:u.name||'',email:u.email||'',phone:u.phone||'',_pendingId:pendingId,_grantUid:u.uid,canPropertyManager:role==='manager',canMaintenance:role==='maintenance'||role==='manager',assignedProperties:[]});
   }
 }
 
@@ -1812,44 +1807,37 @@ function toggleCanPost(id){
   if(!t)return;
   saveTenant(Object.assign({},t,{canPost:!t.canPost}));
 }
+// Rewrites a worker's managerIndex (rules) record to exactly match their two access flags.
+// Both flags false => the record grants no access (clean revocation when demoting to plain tenant).
+function syncWorkerRules(email,canPM,canMaint){
+  var f=fb();
+  var ref=f.doc(f.db,'tenantProfiles/'+pid(email));
+  f.getDoc(ref).then(function(snap){
+    if(!snap.exists())return;
+    var p=snap.data();
+    var uid=p.uid;
+    if(!uid){console.warn('[RULES] '+email+': no uid on profile yet — managerIndex will sync after their first login.');return;}
+    var miRef=f.doc(f.db,'managerIndex/'+uid);
+    f.setDoc(miRef,{uid:uid,landlordUid:S.user.uid,email:(p.email||email).toLowerCase(),name:p.name||p.email||email,canPropertyManager:!!canPM,canMaintenance:!!canMaint},{merge:true}).catch(function(e){console.warn('[RULES] managerIndex sync failed:',e);});
+  }).catch(function(){});
+}
 function toggleMaintenanceAccess(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t||!t.email)return;
   var newVal=!t.canMaintenance;
-  var updated=Object.assign({},t,{canMaintenance:newVal});
-  saveTenant(updated);
+  saveTenant(Object.assign({},t,{canMaintenance:newVal}));
   var f=fb();
   f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canMaintenance:newVal},{merge:true});
-  // Write managerIndex — try using uid from tenantProfile directly
-  var tpRef=f.doc(f.db,'tenantProfiles/'+pid(t.email));
-  f.getDoc(tpRef).then(function(snap){
-    var workerUid=snap.exists()&&snap.data().uid?snap.data().uid:null;
-    if(workerUid){
-      var miRef=f.doc(f.db,'managerIndex/'+workerUid);
-      f.setDoc(miRef,{uid:workerUid,landlordUid:S.user.uid,canMaintenance:newVal,canPropertyManager:snap.data().canPropertyManager||false},{merge:true});
-    }
-  }).catch(function(){});
+  syncWorkerRules(t.email,t.canPropertyManager||false,newVal);
 }
 function togglePropertyManagerAccess(id){
   var t=S.tenants.find(function(x){return x.id===id;});
   if(!t||!t.email)return;
   var newVal=!t.canPropertyManager;
-  var updated=Object.assign({},t,{canPropertyManager:newVal});
-  saveTenant(updated);
+  saveTenant(Object.assign({},t,{canPropertyManager:newVal}));
   var f=fb();
   f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(t.email)),{canPropertyManager:newVal},{merge:true});
-  // Keep managerIndex in sync
-  var tpRef2=f.doc(f.db,'tenantProfiles/'+pid(t.email));
-  f.getDoc(tpRef2).then(function(snap){
-    if(snap.exists()&&snap.data().uid){
-      var miRef=f.doc(f.db,'managerIndex/'+snap.data().uid);
-      if(newVal){
-        f.setDoc(miRef,{uid:snap.data().uid,landlordUid:S.user.uid,canPropertyManager:true,canMaintenance:snap.data().canMaintenance||false},{merge:true});
-      } else {
-        f.setDoc(miRef,{canPropertyManager:false},{merge:true});
-      }
-    }
-  }).catch(function(){});
+  syncWorkerRules(t.email,newVal,t.canMaintenance||false);
 }
 
 function saveBulletinPost(post){
@@ -2061,7 +2049,7 @@ function renderSheet(){
 
   if(S.sheet==='addTenant'||S.sheet==='editTenant'){
     var d=S.sheetData; var isEdit=S.sheet==='editTenant';
-    title=(isEdit?'Edit':'Add')+' Tenant';
+    title=(isEdit?'Edit':'Add')+' '+(d.canPropertyManager?'Manager':(d.canMaintenance?'Maintenance':'Tenant'));
     var propSel=S.properties.length>0
       ?'<select onchange="S.sheetData.property=this.value"><option value="">— Select property —</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'<option value="other">Other…</option></select>'
       :'<input type="text" placeholder="Property Name" value="'+esc(d.property||'')+'" oninput="S.sheetData.property=this.value"/>';
@@ -2431,7 +2419,7 @@ function renderSheet(){
   if(newBox&&scrollTop) newBox.scrollTop=scrollTop;
 }
 
-function doSheetAddTenant(){if(!S.sheetData.name||!S.sheetData.unit){alert('Name and unit required');return;}var d=S.sheetData;var pendingId=d._pendingId||null;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});delete t._pendingId;saveTenant(t);if(pendingId)fsDel('users/'+S.user.uid+'/pendingUsers/'+pendingId);}
+function doSheetAddTenant(){var d=S.sheetData;var isRoleGrant=!!(d._grantUid&&(d.canPropertyManager||d.canMaintenance));if(!d.name||(!isRoleGrant&&!d.unit)){alert(isRoleGrant?'Name required':'Name and unit required');return;}var pendingId=d._pendingId||null;var grantUid=d._grantUid||null;closeSheet();var t=Object.assign({},d,{id:mkid(),rent:Number(d.rent)||0,paid:false,dueDate:new Date().getFullYear()+'-'+String(new Date().getMonth()+2).padStart(2,'0')+'-01'});delete t._pendingId;delete t._grantUid;saveTenant(t);if(grantUid&&(d.canPropertyManager||d.canMaintenance)){var f=fb();f.setDoc(f.doc(f.db,'managerIndex/'+grantUid),{uid:grantUid,landlordUid:S.user.uid,email:(d.email||'').toLowerCase(),name:d.name||d.email,canPropertyManager:!!d.canPropertyManager,canMaintenance:!!d.canMaintenance},{merge:true});f.setDoc(f.doc(f.db,'tenantProfiles/'+pid(d.email)),{uid:grantUid},{merge:true});}if(pendingId)fsDel('users/'+S.user.uid+'/pendingUsers/'+pendingId);}
 function doSheetAddShift(){
   var d=S.sheetData;
   if(!d.workerId){alert('Please select a worker');return;}

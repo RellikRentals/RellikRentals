@@ -710,8 +710,8 @@ function saveWorkerShift(tp){
 
 function subscribeWorkerMileage(uid){
   var f=fb();
-  _unsubs.push(f.onSnapshot(f.query(f.collection(f.db,'users/'+uid+'/mileage'),f.orderBy('date','desc')),function(s){
-    S.workerMileage=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});});
+  _unsubs.push(f.onSnapshot(f.query(f.collection(f.db,'users/'+uid+'/mileage')),function(s){
+    S.workerMileage=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id});}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
     render();
   }));
 }

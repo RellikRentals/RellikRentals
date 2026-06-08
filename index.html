@@ -157,7 +157,7 @@ function authorAvatar(p){
 function daysUntil(d){return Math.ceil((new Date(d)-new Date())/86400000);}
 function leaseStatus(d){var days=daysUntil(d);if(days<0)return{label:'Expired',color:'#f87171'};if(days<60)return{label:days+'d left',color:'#fbbf24'};return{label:'Active',color:'#4ade80'};}
 function fb(){return window._fb;}
-function mkid(){return String(Date.now());}
+function mkid(){return String(Date.now())+Math.random().toString(36).slice(2,8);}
 function monthKey(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0');}
 function pid(email){return btoa(unescape(encodeURIComponent(email))).replace(/=/g,'').replace(/[+]/g,'-').split('/').join('_');}
 
@@ -589,13 +589,6 @@ function delTenant(id){return fsDel('users/'+S.user.uid+'/tenants/'+id);}
 function saveReceipt(r){var d=Object.assign({},r,{previewUrl:null});return fsSet('users/'+S.user.uid+'/receipts/'+r.id,d);}
 function delReceipt(id){return fsDel('users/'+S.user.uid+'/receipts/'+id);}
 function delRentReceipt(tenantEmail,receiptId){if(confirm('Delete this rent receipt?'))return fsDel('tenantReceipts/'+pid(tenantEmail)+'/receipts/'+receiptId);}
-function doEditUtil(){
-  var d=S.sheetData;
-  var u=S.utilities.find(function(x){return x.id===d.id;});
-  if(!u)return;
-  saveUtil(Object.assign({},u,{name:d.name,amount:Number(d.amount)}));
-  closeSheet();
-}
 function doEditUtil(){
   var d=S.sheetData;
   var u=S.utilities.find(function(x){return x.id===d.id;});
@@ -2069,7 +2062,7 @@ function renderSheet(){
     body='<div class="frow">'+inp('Full Name','text',d.name||'','name')+inp('Unit','text',d.unit||'','unit')+'<div><label>Property</label>'+propSel+'</div>'+inp('Monthly Rent ($)','number',d.rent||'','rent')+inp('Email','email',d.email||'','email')+inp('Phone','tel',d.phone||'','phone')+inp('Lease End Date','date',d.lease||'','lease')
       +'<div style="border-top:1px solid #2e2c3d;padding-top:12px;margin-top:4px"><label style="color:#7c7a90;font-size:12px">SECONDARY TENANT (optional)</label><input type="text" placeholder="Full name" value="'+esc(d.name2||'')+'" oninput="S.sheetData.name2=this.value" style="margin-top:6px"/><div style="display:flex;align-items:center;gap:10px;margin-top:10px"><div onclick="S.sheetData.name2OnReceipt=!S.sheetData.name2OnReceipt;renderSheet()" style="width:48px;height:26px;border-radius:99px;background:'+(d.name2OnReceipt?'#6366f1':'#2e2c3d')+';position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0"><div style="position:absolute;top:3px;left:'+(d.name2OnReceipt?'23px':'3px')+';width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s"></div></div><span style="font-size:13px;color:#c0bdd8;cursor:pointer" onclick="S.sheetData.name2OnReceipt=!S.sheetData.name2OnReceipt;renderSheet()">Include on rent receipts</span></div></div>'
       +assignedPropsHtml+'</div>';
-    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditTenant()':'doSheetAddTenant()')+'">'+(isEdit?'Save Changes':'Add Tenant')+'</button></div>';
+    footer='<div class="btn-row"><button class="btn btn-secondary" onclick="closeSheet()">Cancel</button><button class="btn btn-primary" onclick="'+(isEdit?'doSheetEditTenant()':'doSheetAddTenant()')+'">'+(isEdit?'Save Changes':'Add '+(d.canPropertyManager?'Manager':(d.canMaintenance?'Maintenance':'Tenant')))+'</button></div>';
   }
   else if(S.sheet==='addProperty'||S.sheet==='editProperty'){
     var d=S.sheetData; var isEdit=S.sheet==='editProperty';
@@ -3138,7 +3131,7 @@ function _doRender(){
       +'</div>'
       // Quick actions
       +'<div class="card"><div style="font-size:14px;font-weight:700;margin-bottom:12px">Quick Actions</div><div class="grid-2">'
-      +[['Add Tenant','openSheet(\'addTenant\',{})',ICO.plus],['Gen Receipts','openSheet(\'receiptGen\',{})',ICO.receipt],['Documents','S.tab=\'properties\';S.propertiesSubTab=\'docs\';render()','<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],['Upload Expense','S.tab=\'receipts\';render()',ICO.upload]]
+      +[['Add User','openSheet(\'addTenant\',{})',ICO.plus],['Gen Receipts','openSheet(\'receiptGen\',{})',ICO.receipt],['Documents','S.tab=\'properties\';S.propertiesSubTab=\'docs\';render()','<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'],['Upload Expense','S.tab=\'receipts\';render()',ICO.upload]]
       .map(function(a){return '<button onclick="'+a[1]+'" style="background:#22202f;border:1px solid #2e2c3d;border-radius:14px;padding:14px 12px;cursor:pointer;text-align:left;color:#f0eef8;font-family:Nunito,sans-serif"><div style="margin-bottom:8px;color:#6366f1">'+a[2]+'</div><div style="font-size:13px;font-weight:700">'+a[0]+'</div></button>';}).join('')
       +'</div></div></div>';
     }catch(e){console.error('[HOME TAB ERROR]',e);}

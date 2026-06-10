@@ -1032,7 +1032,7 @@ function applyVendorDB(result, rawText){
   }
   var match=null;
   // 1. Match by GST number
-  if(gstNum) match=S.vendorDB.find(function(v){return (v.gst||'').replace(/\D/g,'')===gstNum.replace(/\D/g,'');});
+  if(gstNum){var g9=gstNum.replace(/\D/g,'').slice(0,9);match=S.vendorDB.find(function(v){return (v.gst||'').replace(/\D/g,'').slice(0,9)===g9;});}
   // 2. Fallback — match by address
   if(!match){
     var vendorText=(result.vendor||'').toLowerCase()+' '+(rawText||'').toLowerCase();
@@ -1899,7 +1899,7 @@ function handleFileScan(file){
     // If still too big, compress more
     if(dataUrl.length*0.75>4500000){dataUrl=canvas.toDataURL('image/jpeg',0.65);}
     var base64=dataUrl.split(',')[1];
-    var prompt='Analyze this receipt image. Respond ONLY with valid JSON, no markdown, no explanation: {"vendor":"store name","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low","gst":"business registration number from receipt (GST/HST number, digits only) or empty string if not found"}. IMPORTANT date rules: Always output date as YYYY-MM-DD. If year is 2-digit like 26 expand to 2026. If date is ambiguous use store location — Canadian stores use DD/MM/YYYY, US stores use MM/DD/YYYY. If still uncertain prefer DD/MM/YYYY for Canadian receipts. If not a receipt set total to 0.';
+    var prompt='Analyze this receipt image. Respond ONLY with valid JSON, no markdown, no explanation: {"vendor":"store name","seller":"third-party seller name or empty string","date":"YYYY-MM-DD","total":number,"category":"one of: Repairs & Maintenance, Utilities, Insurance, Property Tax, Supplies, Landscaping, Cleaning, Business Meals, Other","items":["item1"],"confidence":"high|medium|low","gst":"business registration number from receipt (GST/HST number, digits only) or empty string if not found"}. AMAZON RULE: If the receipt shows amazon.ca, amazon.com, an Amazon logo, or an order number formatted like 702-XXXXXXX-XXXXXXX, set "vendor" to exactly "Amazon". Then read the "Sold by / Vendu par" line: if the seller there is NOT Amazon (a third-party marketplace seller), put that seller name in "seller"; if it is sold by Amazon directly, leave "seller" empty. For every non-Amazon receipt, leave "seller" empty. IMPORTANT date rules: Always output date as YYYY-MM-DD. If a month is spelled out (e.g. 06 April 2026 means April 6), trust that over any numeric date. If year is 2-digit like 26 expand to 2026. If date is ambiguous use store location — Canadian stores use DD/MM/YYYY, US stores use MM/DD/YYYY. If still uncertain prefer DD/MM/YYYY for Canadian receipts. If not a receipt set total to 0.';
     var reqBody=JSON.stringify({model:'claude-sonnet-4-6',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},{type:'text',text:prompt}]}]});
     fetch(WORKER_URL+'/',{method:'POST',headers:{'Content-Type':'application/json'},body:reqBody})
     .then(function(r){return r.json();})
@@ -1942,7 +1942,7 @@ function handleFileScan(file){
           result.date=curFullYear+'-'+yearMatch[2]+'-'+yearMatch[3];
         }
       }
-      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
+      var r={id:mkid(),fileName:file.name,previewUrl:previewUrl,vendor:result.vendor||'Unknown',seller:result.seller||'',date:result.date||new Date().toISOString().slice(0,10),total:Number(result.total)||0,category:result.category||'Other',property:S.properties.length>0?S.properties[0].name:'all',expType:'operating',items:result.items||[],confidence:result.confidence||'low'};
       _pendingScanFile=file;
       // Check for duplicate — skip if scanning to vendor database
       var dupCheck=!S.vendorDBScanMode&&S.receipts.find(function(x){
@@ -1966,7 +1966,7 @@ function handleFileScan(file){
       // If scanning to vendor database, show vendor entry sheet instead of receipt confirm
       if(S.vendorDBScanMode){
         var gstNum=(result.gst||'').replace(/\D/g,'').slice(0,9);
-        if(!gstNum){var gstM=clean.match(/\d{9}RT\d{4}/);if(!gstM){var hstM=clean.match(/H\.?S\.?T#?\s*(\d{9})/);if(hstM)gstM=[hstM[1]];}gstNum=gstM?gstM[0]:'';}  
+        if(!gstNum){var gstM=clean.match(/\d{9}RT\d{4}/);if(!gstM){var hstM=clean.match(/H\.?S\.?T#?\s*(\d{9})/);if(hstM)gstM=[hstM[1]];}gstNum=gstM?gstM[0]:'';}gstNum=(gstNum||'').replace(/\D/g,'').slice(0,9);
         
         S.vendorDBScanMode=false;
         S.scanning=false;
@@ -2326,7 +2326,7 @@ function renderSheet(){
     var propSel='<div><label>Property</label><select onchange="S.sheetData.property=this.value;renderSheet()"><option value="all"'+(d.property==='all'?' selected':'')+'>All Properties</option>'+S.properties.map(function(p){return '<option value="'+esc(p.name)+'"'+(d.property===p.name?' selected':'')+'>'+esc(p.name)+'</option>';}).join('')+'</select></div>';
     var previewHtml=d.previewUrl?'<div style="text-align:center;margin-bottom:4px"><img src="'+d.previewUrl+'" style="max-width:100%;max-height:160px;border-radius:12px;object-fit:cover"/></div>':'';
     body='<div class="frow">'+previewHtml
-      +'<div style="background:#22202f;border-radius:12px;padding:12px;margin-bottom:4px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div style="font-size:11px;color:#7c7a90">Vendor</div><div style="font-weight:700">'+esc(d.vendor)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Total</div><div style="font-weight:700;color:#f87171">$'+Number(d.total).toFixed(2)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Date</div><input type="date" value="'+esc(d.date)+'" oninput="S.sheetData.date=this.value;renderSheet()" style="background:#2e2c3d;border:1px solid #3e3c4d;border-radius:8px;padding:4px 8px;color:#f0eef8;font-size:12px;font-family:Nunito,sans-serif;outline:none"/></div><div><div style="font-size:11px;color:#7c7a90">Category</div><div style="font-weight:700">'+esc(d.category)+'</div></div></div></div>'
+      +'<div style="background:#22202f;border-radius:12px;padding:12px;margin-bottom:4px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div style="font-size:11px;color:#7c7a90">Vendor</div><div style="font-weight:700">'+esc(d.vendor)+'</div>'+(d.seller?'<div style="font-size:10px;color:#7c7a90;margin-top:1px">'+esc(d.seller)+'</div>':'')+'</div><div><div style="font-size:11px;color:#7c7a90">Total</div><div style="font-weight:700;color:#f87171">$'+Number(d.total).toFixed(2)+'</div></div><div><div style="font-size:11px;color:#7c7a90">Date</div><input type="date" value="'+esc(d.date)+'" oninput="S.sheetData.date=this.value;renderSheet()" style="background:#2e2c3d;border:1px solid #3e3c4d;border-radius:8px;padding:4px 8px;color:#f0eef8;font-size:12px;font-family:Nunito,sans-serif;outline:none"/></div><div><div style="font-size:11px;color:#7c7a90">Category</div><div style="font-weight:700">'+esc(d.category)+'</div></div></div></div>'
       +propSel
       +'<div><label>Type</label><div style="display:flex;gap:8px;margin-top:6px"><button onclick="S.sheetData.expType=\'operating\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+((d.expType||'operating')==='operating'?'#6366f1':'#2e2c3d')+';background:'+((d.expType||'operating')==='operating'?'#6366f122':'transparent')+';color:'+((d.expType||'operating')==='operating'?'#6366f1':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Operating</button><button onclick="S.sheetData.expType=\'capital\';renderSheet()" style="flex:1;padding:10px;border-radius:10px;border:2px solid '+(d.expType==='capital'?'#fbbf24':'#2e2c3d')+';background:'+(d.expType==='capital'?'#fbbf2422':'transparent')+';color:'+(d.expType==='capital'?'#fbbf24':'#7c7a90')+';font-weight:700;font-size:13px;cursor:pointer;font-family:Nunito,sans-serif">Capital</button></div></div>'
       '<div style="background:#4ade8022;border-radius:10px;padding:8px 12px;font-size:11px;color:#4ade80;font-weight:700">📁 Will upload to: RellikRentals → '+(d.property&&d.property!=='all'?esc(d.property):'General')+' → '+(d.expType==='capital'?'Capital':'Operating')+'</div>'
@@ -2669,7 +2669,7 @@ function _doRender(){
         +(!S.mgCollapsed.expenses?(mgReceipts.length===0?'<div style="font-size:12px;color:#7c7a90;text-align:center;padding:8px">No expenses</div>'
           :mgReceipts.slice(0,5).map(function(r){
             return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2e2c3d">'
-              +'<div><div style="font-size:13px;font-weight:700">'+esc(r.vendor)+'</div>'
+              +'<div><div style="font-size:13px;font-weight:700">'+esc(r.vendor)+'</div>'+(r.seller?'<div style="font-size:10px;color:#7c7a90">'+esc(r.seller)+'</div>':'')
               +'<div style="font-size:11px;color:#7c7a90">'+r.date+' · '+esc(r.category)+'</div></div>'
               +'<div style="font-size:14px;font-weight:800;color:#f87171">'+fmtS(r.total)+'</div>'
               +'</div>';
@@ -3702,7 +3702,7 @@ function _doRender(){
         return '<div class="card" style="display:flex;gap:12px;align-items:flex-start;'+(unalloc?'border:2px solid #f87171;':'')+'">'
           +(r.previewUrl?'<img src="'+r.previewUrl+'" style="width:52px;height:52px;object-fit:cover;border-radius:10px;flex-shrink:0"/>':'<div style="width:52px;height:52px;background:#22202f;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>')
           +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div>'
+          +'<div style="font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.vendor)+'</div>'+(r.seller?'<div style="font-size:11px;color:#7c7a90;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.seller)+'</div>':'')
           +'<div style="font-size:12px;color:#7c7a90">'+r.date+' · <span style="color:#6366f1cc">'+esc(r.category)+'</span>'+(r.property&&r.property!=='all'?' · '+esc(r.property):'')+'</div>'
           +(r.expType==='capital'?'<div style="display:inline-block;background:#fbbf2422;color:#fbbf24;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;margin-top:3px">CAPITAL</div>':'')
           +(r.fileName?'<div style="font-size:10px;color:#4a4860;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📎 '+esc(r.fileName)+'</div>':'')

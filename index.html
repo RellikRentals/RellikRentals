@@ -3632,7 +3632,7 @@ function _doRender(){
     var filteredTotal=filteredReceipts.reduce(function(a,r){return a+(Number(r.total)||0);},0);
     var btnStyle=function(type){return 'padding:7px 16px;border-radius:99px;border:none;font-weight:700;font-size:12px;cursor:pointer;font-family:Nunito,sans-serif;background:'+(S.receiptTypeFilter===type?'#6366f1':'#22202f')+';color:'+(S.receiptTypeFilter===type?'#fff':'#7c7a90');};
     // Mileage for current month
-    var curMileage=S.mileageLog.filter(function(m){return m.date&&m.date.startsWith(S.viewYear+'-'+String(S.viewMonth+1).padStart(2,'0'));});
+    var curMileage=S.mileageLog.filter(function(m){if(!m.date)return false;if(S.expFilterMonth==='all')return true;return m.date.startsWith(S.expFilterYear+'-'+S.expFilterMonth);});
     var curMileageProp=S.mileageFilter?curMileage.filter(function(m){return m.property===S.mileageFilter;}):curMileage;
     var totalMiles=Math.round(curMileageProp.reduce(function(a,m){return a+(Number(m.distance)||0);},0)*10)/10;
     var mileUnit=curMileage.length>0?curMileage[0].unit:'km';
